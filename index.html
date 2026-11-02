@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>文件範本產生器</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="window">
+  <div class="titlebar"><span class="ico"></span><span id="title">文件範本產生器</span></div>
+
+  <div class="toolbar">
+    <fieldset><legend>檔案</legend>
+      <label class="btn" for="file" tabindex="0" title="匯入照片（Ctrl+O，可多張）">照片(<u>O</u>)</label>
+      <input type="file" id="file" accept="image/*" multiple hidden>
+      <label class="btn" for="projFile" tabindex="0" title="開啟專案檔">開啟</label>
+      <input type="file" id="projFile" accept=".json,application/json" hidden>
+      <button id="bSaveProj" title="儲存專案檔（Ctrl+S）">儲存</button>
+      <button id="bExportCfg" title="把線型、符號、文字樣式與工具列設定存成設定檔，換電腦或瀏覽器時匯入">匯出設定</button>
+      <label class="btn" for="cfgFile" tabindex="0" title="匯入設定檔（會取代目前的線型、符號、文字樣式與工具列設定）">匯入設定</label>
+      <input type="file" id="cfgFile" accept=".json,application/json" hidden>
+    </fieldset>
+    <fieldset><legend>輸出</legend>
+      <button id="bWord">匯出 Word…</button>
+      <button id="bSaveAll">全部 PNG</button>
+      <button id="bCopy">複製圖片</button>
+    </fieldset>
+    <fieldset><legend>編輯</legend>
+      <button id="bUndo">復原</button>
+      <button id="bDel">刪除選取</button>
+      <button id="bClear">全部清除</button>
+    </fieldset>
+    <fieldset><legend>線型（快捷鍵）</legend>
+      <span id="presetBar" class="group"></span>
+    </fieldset>
+    <fieldset><legend>文字（按住快捷鍵點照片放置）</legend>
+      <span id="textBar" class="group"></span>
+    </fieldset>
+    <fieldset><legend>符號（按住快捷鍵點照片放置）</legend>
+      <span id="symbolBar" class="group"></span>
+      <button class="openPresets" title="線型・文字・符號・快捷鍵設定">線型/文字/符號設定…</button>
+    </fieldset>
+    <fieldset><legend>顏色</legend>
+      <span id="swatches" class="group"></span>
+      <input type="color" id="color" title="自訂顏色">
+    </fieldset>
+    <fieldset><legend>樣式</legend>
+      <label class="opt" title="選取文字時是字級、選取符號時是大小"><span id="widthL">線寬</span> <input type="range" id="width" min="1" max="15"> <span class="val" id="widthV"></span></label>
+      <span id="lineOpts" class="group">
+        <label class="opt">線型 <select id="dash"></select></label>
+        <label class="opt">箭頭 <select id="arrow"></select></label>
+      </span>
+    </fieldset>
+    <fieldset><legend>拉直</legend>
+      <label class="opt" title="數字越大：抖動容忍越高、線段越少越直">靈敏度 <input type="range" id="sens" min="1" max="10"> <span class="val" id="sensV"></span></label>
+      <label class="opt"><input type="checkbox" id="snap"> 水平/垂直/45° 吸附</label>
+    </fieldset>
+  </div>
+
+  <div class="main">
+    <div id="side" class="sunken">
+      <div class="head">照片清單</div>
+      <div id="list"></div>
+    </div>
+    <div id="split" title="拖曳調整照片清單寬度"></div>
+    <div id="center">
+      <div id="stage" class="sunken">
+        <div id="empty" class="window dialog">
+          <div class="titlebar"><span class="ico"></span>歡迎使用</div>
+          <div class="body">
+            <div>可以直接填寫文件匯出 Word，<br>也可以先匯入現場照片標註（可一次選多張，或直接拖曳到視窗）。<br>照片只在本機處理，不會上傳。</div>
+            <div class="row">
+              <button id="bWordStart">填寫文件…</button>
+              <label class="btn" for="file">匯入照片(<u>O</u>)…</label>
+              <label class="btn" for="projFile">開啟專案…</label>
+            </div>
+          </div>
+        </div>
+        <div id="wrap"><canvas id="main"></canvas><canvas id="overlay"></canvas><input id="textEdit" placeholder="輸入文字…" autocomplete="off"></div>
+        <div id="toast"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span id="hint"></span><span id="sPhoto"></span><span id="sSize"></span><span id="sCount"></span>
+  </div>
+</div>
+
+<div class="modal" id="dlgPresets">
+  <div class="window dialog wide">
+    <div class="titlebar"><span class="ico"></span>線型・文字・符號・快捷鍵設定</div>
+    <div class="body form">
+      <div class="sect">線型</div>
+      <table class="ptable" id="lineTable">
+        <thead><tr><th>預覽</th><th>名稱</th><th>快捷鍵</th><th>顏色</th><th>線寬</th><th>線型</th><th>箭頭</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row"><button id="pAddLine">新增線型</button></div>
+      <div class="sect">文字</div>
+      <table class="ptable" id="tstyleTable">
+        <thead><tr><th>預覽</th><th>名稱</th><th>快捷鍵</th><th>顏色</th><th>字級</th><th>描邊</th><th>底色</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row"><button id="pAddText">新增文字樣式</button></div>
+      <div class="sect">符號</div>
+      <table class="ptable" id="symTable">
+        <thead><tr><th>預覽</th><th>名稱</th><th>快捷鍵</th><th>形狀</th><th>樣式</th><th>顏色</th><th>第二色</th><th>描邊色</th><th>描邊粗細</th><th>大小</th><th>內文</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row"><button id="pAddSym">新增符號</button></div>
+      <div class="note">
+        線型：按一下快捷鍵切換線型；按住快捷鍵（或 Space）點照片放點、拖曳手繪，按住期間全部接成同一條線，放開按鍵完成並回到原模式。<br>
+        文字：按住快捷鍵點照片放文字，放開按鍵再打字；選取文字後點工具列的文字樣式可以換樣式。描邊「自動」依字色深淺配黑或白。<br>
+        符號：按住快捷鍵點照片放置；按住滑鼠拖曳可決定方向（三角形指向拖曳方向；異色半邊、小圓、小三角也跟著轉）。「第二色」用在半邊異色、內含小圓、內含小三角，以及六角形、方形的框內；「描邊粗細」0＝不描邊。<br>
+        內文用空白換行，例如「90-2 弱電箱 引入點」排成三行；放上去之後在選取模式雙擊符號可個別修改內文。<br>
+        快捷鍵限英文字母或數字，線型、文字、符號之間不可重複；文字樣式至少要留一個。
+      </div>
+      <div class="row">
+        <button id="pReset">全部還原預設</button>
+        <span class="spacer"></span>
+        <button id="pOk">確定</button><button id="pCancel">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="dlgWord">
+  <div class="window dialog wide">
+    <div class="titlebar"><span class="ico"></span>匯出 Word 文件</div>
+    <div class="body form">
+      <div id="wTemplateBox" class="body form" style="padding:0">
+        <div class="row">
+          <span id="wTplName" class="note">尚未選擇範本</span><span class="spacer"></span>
+          <label class="btn" for="tplFile">選擇範本…</label><input type="file" id="tplFile" accept=".docx" hidden>
+          <button id="bSnips">常用字串…</button>
+        </div>
+        <div id="wFields" class="fgrid"></div>
+        <div class="row">照片的文繞圖
+          <label class="opt"><input type="radio" name="wWrap" value="inline"> 與文字排列</label>
+          <label class="opt"><input type="radio" name="wWrap" value="behind"> 文字在前（圖在文字後面）</label>
+          <label class="opt"><input type="radio" name="wWrap" value="front"> 文字在後（圖蓋在文字上面）</label>
+        </div>
+        <div class="note">照片依照片清單右鍵設定的「用途」放進範本。照片放在哪裡、怎麼排，以及欄位的規則，都由範本決定；要改請在 Word 改範本。</div>
+        <label class="row">檔名 <input type="text" id="wFileName" style="flex:1"> .docx</label>
+      </div>
+      <div class="row"><span class="spacer"></span><button id="wOk">產生 .docx</button><button id="wCancel">取消</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="dlgSnips">
+  <div class="window dialog wide">
+    <div class="titlebar"><span class="ico"></span>常用字串</div>
+    <div class="body form">
+      <table class="ptable" id="snipTable">
+        <thead><tr><th>展開後</th><th>名稱</th><th>內容</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row"><button id="sAdd">新增常用字串</button></div>
+      <div class="note">
+        在任何欄位裡寫 {名稱}，匯出時就換成這裡的內容，例如名稱「公司全名」、內容「○○股份有限公司」，欄位裡寫 {公司全名}。
+        內容裡也可以再放 {名稱}；認不得的 {…} 會原樣留著。<br>
+        常用字串只存在這台瀏覽器。欄位本身的規則（類型、選項、預設值、必填）在範本的「範本設定」表。
+      </div>
+      <div class="row"><button id="sReset">還原成預設值</button><span class="spacer"></span><button id="sOk">確定</button><button id="sCancel">取消</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="menu"></div>
+
+<!-- 依序載入，順序不能換：頂層程式碼只能呼叫「已經載入」的檔案裡的函式 -->
+<script src="js/core.js"></script>
+<script src="js/edit.js"></script>
+<script src="js/word.js"></script>
+<script src="js/fields.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
