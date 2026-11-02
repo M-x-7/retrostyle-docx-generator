@@ -9,7 +9,7 @@
 
 ## 開始使用
 
-1. 打開網頁，或把整個資料夾（`index.html`、`css/`、`js/`）複製到電腦，再用瀏覽器開 `index.html`。
+1. 打開網頁，或把整個資料夾（`index.html`、`favicon.ico`、`css/`、`js/`）複製到電腦，再用瀏覽器開 `index.html`。
    需要 Edge 或 Chrome 103 以上。
 2. 按「填寫文件…」或「匯出 Word…」，選擇你的 Word 範本（.docx）。範本會記在瀏覽器裡，下次不用再選。
 3. 填好欄位，按「產生 .docx」。
