@@ -722,7 +722,7 @@ function commit() {
   const p = photos[cur];
   const count = t => items.filter(it => it.type === t).length;
   const counts = [['線', count('line')], ['字', count('text')], ['符號', count('symbol')]];
-  $('title').textContent = p ? '文件範本產生器 - ' + p.name : '文件範本產生器';
+  $('title').textContent = p ? '復古風DOCX生成工具 - ' + p.name : '復古風DOCX生成工具';
   $('sPhoto').textContent = p ? '照片 ' + (cur + 1) + ' / ' + photos.length : '無照片';
   $('sSize').textContent = p ? p.w + '×' + p.h : '';
   $('sCount').textContent = p ? counts.map(([n, c]) => n + ' ' + c).join('　') : '';

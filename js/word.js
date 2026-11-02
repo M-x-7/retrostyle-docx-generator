@@ -99,7 +99,7 @@ const CONFIG_APP = PROJECT_APP + '.config';
 
 $('bExportCfg').onclick = () => {
   const data = { app:CONFIG_APP, version:1, presets, symbols, textStyles, settings, sideWidth:parseInt($('side').style.width) || null };
-  downloadBlob(new Blob([JSON.stringify(data, null, 1)], { type:'application/json' }), '文件範本產生器_設定.json');
+  downloadBlob(new Blob([JSON.stringify(data, null, 1)], { type:'application/json' }), '復古風DOCX生成工具_設定.json');
   toast('已匯出設定檔');
 };
 
