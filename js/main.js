@@ -17,7 +17,6 @@ document.addEventListener('keydown', e => {
   if (e.target instanceof Element && e.target.matches(TYPING)) return;
   const k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
   if (ctrl && k === 'z') { e.preventDefault(); undo(); }
-  else if (ctrl && k === 'o') { e.preventDefault(); $('file').click(); }
   else if (ctrl && k === 's') { e.preventDefault(); saveProject(); }   // 沒有照片也能存（只有修繕單欄位）
   else if (ctrl || e.altKey) return;
   else if (k === ' ' || presetFor(k) || symbolFor(k) >= 0 || textFor(k) >= 0) {

@@ -61,7 +61,7 @@ function blobToDataURL(blob) {
 
 async function saveProject() {
   saveCur();
-  const data = { app:PROJECT_APP, version:1, fields:docFields, photos:[] };   // 舊專案檔還有 title（簡易版面的標題，已移除），讀的時候忽略
+  const data = { app:PROJECT_APP, version:2, fields:docFields, photos:[] };   // 2＝符號內文用換行字元；舊專案檔還有 title（簡易版面的標題，已移除），讀的時候忽略
   for (const p of photos) data.photos.push({ name:p.name, role:p.role, items:p.items, image:await blobToDataURL(p.file) });
   const fname = docName() + '_專案.json';
   downloadBlob(new Blob([JSON.stringify(data)], { type:'application/json' }), fname);
@@ -85,6 +85,7 @@ async function openProject(file) {
     const { im, url } = await loadImage(blob);
     const p = addPhoto(d.name, im, url, blob);
     p.items = d.items || [];
+    if ((data.version || 1) < 2) oldLabels(p.items.filter(it => it.type === 'symbol'));   // 舊檔的符號內文用空白換行
     p.role = d.role || SITE_ROLE;   // 舊專案檔裡的 desc（照片說明，已移除的功能）直接忽略
   }
   renumber();   // 用途是加進清單後才設的，編號要重算
@@ -98,7 +99,7 @@ $('bSaveProj').onclick = saveProject;
 const CONFIG_APP = PROJECT_APP + '.config';
 
 function exportConfig() {
-  const data = { app:CONFIG_APP, version:1, presets, symbols, textStyles, settings, sideWidth:parseInt($('side').style.width) || null };
+  const data = { app:CONFIG_APP, version:2, presets, symbols, textStyles, settings, sideWidth:parseInt($('side').style.width) || null };
   downloadBlob(new Blob([JSON.stringify(data, null, 1)], { type:'application/json' }), '復古風DOCX生成工具_設定.json');
   toast('已匯出設定檔');
 }
@@ -134,6 +135,7 @@ $('cfgFile').onchange = async e => {
     return alert('不是這個工具的設定檔：' + file.name);
   }
   if (!confirm('匯入會取代目前的線型、符號、文字樣式與工具列設定，確定嗎？')) return;
+  if ((data.version || 1) < 2) oldLabels(data.symbols);   // 舊設定檔的符號內文用空白換行
   setStyles(data.presets, data.symbols, data.textStyles);
   applyUI(data);
   syncControls();   // 工具列反映新設定，並存進瀏覽器

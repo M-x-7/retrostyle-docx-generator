@@ -83,9 +83,24 @@ function saveObj(store, obj) {
   try { localStorage.setItem(store, JSON.stringify(obj)); } catch (err) { /* 瀏覽器禁止儲存時只在本次有效 */ }
 }
 
+/* 符號內文以前用空白換行，現在用換行字元（輸入時 Shift+Enter）。舊資料讀進來時轉一次：
+   專案檔、設定檔看 version（1＝舊），瀏覽器裡存的符號設定看 LABEL_NL_STORE 有沒有轉過 */
+const LABEL_NL_STORE = 'cable-photo-annotator.labelNewline';
+const spacesToLines = s => (s || '').trim().split(/\s+/).join('\n');
+const oldLabels = list => list.forEach(s => { if (s.label) s.label = spacesToLines(s.label); });
+
+function migrateLabelStore() {
+  try {
+    if (localStorage.getItem(LABEL_NL_STORE) !== null) return;
+    if (localStorage.getItem(SYMBOL_STORE) !== null) { oldLabels(symbols); saveList(SYMBOL_STORE, symbols); }
+    localStorage.setItem(LABEL_NL_STORE, '1');
+  } catch (err) { /* 禁止存取時沒有舊資料可轉 */ }
+}
+
 const settings = { color:'#e53935', width:4, dash:'dash', arrow:'none', sens:4, snap:true, siteWrap:'front' };
 let presets = loadList(PRESET_STORE, DEFAULT_PRESETS);
 let symbols = loadList(SYMBOL_STORE, DEFAULT_SYMBOLS);
+migrateLabelStore();
 let textStyles = loadList(TEXT_STYLE_STORE, DEFAULT_TEXT_STYLES);
 let snippets = loadList(SNIPPET_STORE, DEFAULT_SNIPPETS);
 let fieldHistory = loadObj(FIELD_HISTORY_STORE);
@@ -446,7 +461,7 @@ function drawSymbol(c, s, r) {
   const label = (s.label || '').trim();
   if (label) {
     c.rotate(-(s.angle || 0));   // 內文保持水平
-    const lines = label.split(/\s+/);   // 空白換行，例如「90-2 弱電箱 引入點」排成三行
+    const lines = label.split('\n').map(l => l.trim());   // 輸入時 Shift+Enter 換行；空白就是空白
     const box = r * (s.shape === 'triangle' || s.shape === 'triIn' ? 0.9 : 1.4);   // 圖形內可放字的寬高
     c.font = 'bold 100px ' + FONT;
     const widest = Math.max(...lines.map(l => c.measureText(l).width)) / 100;

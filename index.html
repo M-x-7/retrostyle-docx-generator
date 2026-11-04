@@ -13,7 +13,7 @@
 
   <div class="toolbar">
     <fieldset><legend>檔案</legend>
-      <label class="btn" for="file" tabindex="0" title="匯入照片（Ctrl+O，可多張）">照片(<u>O</u>)</label>
+      <label class="btn" for="file" tabindex="0" title="匯入照片（可多張）">照片</label>
       <input type="file" id="file" accept="image/*" multiple hidden>
       <label class="btn" for="projFile" tabindex="0" title="開啟專案檔">開啟</label>
       <input type="file" id="projFile" accept=".json,application/json" hidden>
@@ -72,12 +72,12 @@
             <div>可以直接填寫文件匯出 Word，<br>也可以先匯入現場照片標註（可一次選多張，或直接拖曳到視窗）。<br>照片只在本機處理，不會上傳。</div>
             <div class="row">
               <button id="bWordStart">填寫文件…</button>
-              <label class="btn" for="file">匯入照片(<u>O</u>)…</label>
+              <label class="btn" for="file">匯入照片…</label>
               <label class="btn" for="projFile">開啟專案…</label>
             </div>
           </div>
         </div>
-        <div id="wrap"><canvas id="main"></canvas><canvas id="overlay"></canvas><input id="textEdit" placeholder="輸入文字…" autocomplete="off"></div>
+        <div id="wrap"><canvas id="main"></canvas><canvas id="overlay"></canvas><textarea id="textEdit" rows="1" placeholder="輸入文字…" autocomplete="off" spellcheck="false"></textarea></div>
         <div id="toast"></div>
       </div>
     </div>
@@ -115,7 +115,7 @@
         線型：按住快捷鍵（或 Space，用上次的線型）點照片放點、拖曳手繪，按住期間全部接成同一條線，放開按鍵完成並回到選取。<br>
         文字：按住快捷鍵點照片放文字，放開按鍵再打字。描邊「自動」依字色深淺配黑或白。<br>
         符號：按住快捷鍵點照片放置；按住滑鼠拖曳可決定方向（三角形指向拖曳方向；異色半邊、小圓、小三角也跟著轉）。「第二色」用在半邊異色、內含小圓、內含小三角，以及六角形、方形的框內；「描邊粗細」0＝不描邊。<br>
-        內文用空白換行，例如「90-2 弱電箱 引入點」排成三行；放上去之後在選取模式雙擊符號可個別修改內文。<br>
+        內文用 Shift+Enter 換行（Enter 是確定），空白就是空白；放上去之後在選取模式雙擊符號可個別修改內文，一樣用 Shift+Enter 換行。<br>
         快捷鍵限英文字母或數字，線型、文字、符號之間不可重複；文字樣式至少要留一個。
       </div>
       <div class="row">

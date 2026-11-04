@@ -178,7 +178,7 @@ ov.addEventListener('dblclick', e => {
   else if (items[i].type === 'symbol') openLabelEditor(i);
 });
 
-// 修改符號內文：輸入框出現在符號下方，用空白換行
+// 修改符號內文：輸入框出現在符號下方，Shift+Enter 換行、Enter 確定
 function openLabelEditor(idx) {
   const it = items[idx], f = cssToImg();
   edit = { idx, label:true };
@@ -189,6 +189,7 @@ function openLabelEditor(idx) {
     fontSize:'16px', color:'#fff', width:'160px', transform:'',
   });
   te.value = it.label || '';
+  sizeEditor();
   te.focus();
   te.select();
 }
@@ -218,6 +219,7 @@ function openEditor(p, idx) {
 }
 
 function sizeEditor() {
+  te.rows = edit.label ? te.value.split('\n').length : 1;   // 只有符號內文會有多行
   if (edit.label) return;
   const px = edit.size * unit;
   mctx.font = 'bold ' + px + 'px ' + FONT;
@@ -226,7 +228,9 @@ function sizeEditor() {
 
 function finishEdit(ok) {
   if (!edit) return;
-  const e = edit, text = te.value.trim();
+  // 符號內文每行去頭尾空白、丟掉空行；照片上的文字只有一行（貼上多行時換行當空白）
+  const e = edit, lines = te.value.split('\n').map(l => l.trim());
+  const text = e.label ? lines.filter(Boolean).join('\n') : lines.join(' ').trim();
   edit = null;
   te.style.display = 'none';
   const it = e.idx >= 0 ? items[e.idx] : null;
@@ -247,6 +251,7 @@ te.addEventListener('input', sizeEditor);
 te.addEventListener('blur', () => finishEdit(true));
 te.addEventListener('keydown', e => {
   if (e.isComposing || e.keyCode === 229) return;   // 注音/倉頡選字中的 Enter 不算確定
+  if (e.key === 'Enter' && e.shiftKey && edit && edit.label) return;   // 符號內文 Shift+Enter 換行（照樣插入換行，input 事件會調高度）
   if (e.key === 'Enter') { e.preventDefault(); finishEdit(true); }
   else if (e.key === 'Escape') finishEdit(false);
 });
@@ -442,7 +447,7 @@ const SYMBOL_COLS = [
   { k:'name', t:'text', max:12 }, { k:'key', t:'key' }, { k:'shape', t:'select', opts:SHAPE_NAMES },
   { k:'fill', t:'select', opts:FILL_NAMES }, { k:'color', t:'color' }, { k:'color2', t:'color' },
   { k:'stroke', t:'color' }, { k:'strokeW', t:'number', min:0, max:30 }, { k:'size', t:'number', min:10, max:500 },
-  { k:'label', t:'text', max:12 },
+  { k:'label', t:'lines', max:30 },
 ];
 const TSTYLE_COLS = [
   { k:'name', t:'text', max:12 }, { k:'key', t:'key' }, { k:'color', t:'color' }, { k:'size', t:'number', min:10, max:80 },
@@ -469,7 +474,8 @@ function readRow(tr, cols) {
     const v = tr.querySelector('.c-' + c.k).value;
     o[c.k] = c.t === 'number' ? Math.max(c.min, Math.min(c.max, Math.round(+v) || c.min))
       : c.t === 'key' ? v.trim().toUpperCase()
-      : c.t === 'text' ? v.trim() : v;
+      : c.t === 'text' ? v.trim()
+      : c.t === 'lines' ? v.split('\n').map(l => l.trim()).filter(Boolean).join('\n') : v;
   });
   if (!o.name) o.name = '未命名';
   return o;
@@ -480,14 +486,19 @@ function addRow(kind, obj) {
   const tr = document.createElement('tr'), preview = document.createElement('td');
   tr.appendChild(preview);
   cols.forEach(c => {
-    const el = document.createElement(c.t === 'select' ? 'select' : 'input');
+    const el = document.createElement(c.t === 'select' ? 'select' : c.t === 'lines' ? 'textarea' : 'input');
     if (c.t === 'select') el.innerHTML = options(c.opts);
+    else if (c.t === 'lines') {   // 多行：Shift+Enter 換行，單按 Enter 不換行（跟照片上改內文一樣）
+      el.addEventListener('input', () => { el.rows = el.value.split('\n').length; });
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) e.preventDefault(); });
+    }
     else el.type = c.t === 'key' ? 'text' : c.t;
-    if (c.max && c.t === 'text') el.maxLength = c.max;
+    if (c.max && (c.t === 'text' || c.t === 'lines')) el.maxLength = c.max;
     if (c.t === 'number') { el.min = c.min; el.max = c.max; }
     if (c.t === 'key') el.oninput = () => { el.value = el.value.slice(-1).toUpperCase(); };
     el.className = 'c-' + c.k;
     el.value = obj[c.k];
+    if (c.t === 'lines') el.rows = el.value.split('\n').length;
     const td = document.createElement('td');
     td.appendChild(el);
     tr.appendChild(td);

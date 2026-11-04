@@ -98,6 +98,7 @@ textarea { resize:vertical; line-height:1.5; }
   position:absolute; display:none; z-index:1; margin:0; padding:0 2px; line-height:1.15;
   font-weight:bold; font-family:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;
   background:rgba(0,0,0,.45); border:1px dashed var(--accent); outline:none; border-radius:0;
+  resize:none; overflow:hidden; white-space:pre;   /* textarea：符號內文可以 Shift+Enter 換行，高度由 rows 決定 */
 }
 .dialog { width:min(420px, 92%); height:auto; }
 .dialog .body { padding:16px; display:flex; flex-direction:column; gap:14px; align-items:center; text-align:center; line-height:1.6; }
@@ -118,6 +119,7 @@ textarea { resize:vertical; line-height:1.5; }
 .ptable .c-name { width:100%; min-width:6em; }
 .ptable .c-key { width:3em; text-align:center; text-transform:uppercase; }
 .ptable .c-width, .ptable .c-size, .ptable .c-label { width:4em; }
+.ptable textarea.c-label { width:5em; resize:none; vertical-align:middle; }   /* 符號內文：Shift+Enter 換行，高度跟著行數 */
 .ptable .c-strokeW { width:3.5em; }
 #toast {
   position:fixed; z-index:30; left:50%; top:10px; transform:translateX(-50%); max-width:90%;
