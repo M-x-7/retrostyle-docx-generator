@@ -97,10 +97,28 @@ $('bSaveProj').onclick = saveProject;
 /* ---------- 設定檔（線型、符號、文字樣式、工具列設定；換電腦或瀏覽器時帶著走） ---------- */
 const CONFIG_APP = PROJECT_APP + '.config';
 
-$('bExportCfg').onclick = () => {
+function exportConfig() {
   const data = { app:CONFIG_APP, version:1, presets, symbols, textStyles, settings, sideWidth:parseInt($('side').style.width) || null };
   downloadBlob(new Blob([JSON.stringify(data, null, 1)], { type:'application/json' }), '復古風DOCX生成工具_設定.json');
   toast('已匯出設定檔');
+}
+
+// 工具列只有一個「設定檔…」按鈕（使用者指定），按下跳選單選匯出或匯入；借用照片清單右鍵的 #menu
+$('bCfg').onclick = () => {
+  const m = $('menu'), r = $('bCfg').getBoundingClientRect();
+  m.innerHTML = '';
+  const item = (label, title, fn) => {
+    const b = document.createElement('button');
+    b.textContent = label; b.title = title;
+    b.onclick = () => { closeFieldMenu(); fn(); };
+    m.appendChild(b);
+  };
+  item('匯出設定檔…', '把線型、符號、文字樣式與工具列設定存成設定檔', exportConfig);
+  item('匯入設定檔…', '會取代目前的線型、符號、文字樣式與工具列設定', () => $('cfgFile').click());
+  m.classList.add('show');
+  m.style.left = Math.max(4, Math.min(r.left, window.innerWidth - m.offsetWidth - 4)) + 'px';
+  m.style.top = Math.max(4, Math.min(r.bottom + 2, window.innerHeight - m.offsetHeight - 4)) + 'px';
+  menuFor = '#cfg';
 };
 
 // 整份取代（使用者指定），不合併
