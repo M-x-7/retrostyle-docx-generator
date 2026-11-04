@@ -24,7 +24,7 @@ document.addEventListener('keydown', e => {
     if (k === ' ') e.preventDefault();   // 避免捲動頁面或觸發剛點過的按鈕
     if (e.repeat || heldKey) return;
     const si = symbolFor(k), ti = textFor(k);
-    if (presetFor(k)) applyPreset(presetFor(k), false);
+    if (presetFor(k)) applyPreset(presetFor(k));
     if (si >= 0) curSym = si;
     if (ti >= 0) curText = ti;
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();

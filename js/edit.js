@@ -371,7 +371,7 @@ function renderSymbolBar() {
     const b = document.createElement('button');
     b.append(symbolSample(s, 24), s.name + (s.key ? '(' + s.key + ')' : ''));
     b.classList.toggle('on', mode === 'symbol' && curSym === i);
-    b.onclick = () => { curSym = i; setMode('symbol'); };
+    b.title = s.key ? '按住 ' + s.key + ' 點照片放置' : '沒有快捷鍵，到設定裡指定一個才能放';   // 標註只能用快捷鍵放（使用者指定），按鈕只當對照表
     bar.appendChild(b);
   });
 }
@@ -391,14 +391,12 @@ function renderTextBar() {
     const b = document.createElement('button');
     b.append(textSample(s), s.name + (s.key ? '(' + s.key + ')' : ''));
     b.classList.toggle('on', mode === 'text' && curText === i);
-    b.onclick = () => {
-      if (sel >= 0 && items[sel].type === 'text') {
-        pushUndo();
-        keepTextStart(items[sel], () => ['color', 'size', 'stroke', 'box'].forEach(k => { items[sel][k] = s[k]; }));
-        return commit();
-      }
-      curText = i;
-      setMode('text');
+    b.title = (s.key ? '按住 ' + s.key + ' 點照片放文字' : '沒有快捷鍵，到設定裡指定一個才能放') + '；選取文字時點這裡換成這個樣式';
+    b.onclick = () => {   // 滑鼠只用來換選取中文字的樣式；放文字一律按住快捷鍵（使用者指定）
+      if (sel < 0 || items[sel].type !== 'text') return;
+      pushUndo();
+      keepTextStart(items[sel], () => ['color', 'size', 'stroke', 'box'].forEach(k => { items[sel][k] = s[k]; }));
+      commit();
     };
     bar.appendChild(b);
   });
@@ -418,19 +416,20 @@ function renderPresetBar() {
     const b = document.createElement('button');
     b.append(presetSample(p), p.name + (p.key ? '(' + p.key + ')' : ''));
     b.classList.toggle('on', mode === 'line' && ['color', 'width', 'dash', 'arrow'].every(k => settings[k] === p[k]));   // 只在畫線中亮
-    b.onclick = () => applyPreset(p, true);
+    b.title = (p.key ? '按住 ' + p.key + ' 用這個線型畫線' : '沒有快捷鍵，到設定裡指定一個才能用') + '；選取線時點這裡換成這個線型';
+    b.onclick = () => {   // 滑鼠只用來換選取中線的線型；畫線用的線型一律由快捷鍵決定（使用者指定）
+      if (sel < 0 || items[sel].type !== 'line') return;
+      pushUndo();
+      ['color', 'width', 'dash', 'arrow'].forEach(k => { items[sel][k] = p[k]; });
+      commit();
+    };
     bar.appendChild(b);
   });
 }
 
-// toSel：點按鈕時也套用到選取中的線；用快捷鍵時只切換線型
-function applyPreset(p, toSel) {
-  editing = false;
-  ['color', 'width', 'dash', 'arrow'].forEach(k => {
-    settings[k] = p[k];
-    if (toSel) applyToSel(k, p[k]);
-  });
-  editing = false;
+// 按線型快捷鍵：切換畫新線用的線型
+function applyPreset(p) {
+  ['color', 'width', 'dash', 'arrow'].forEach(k => { settings[k] = p[k]; });
   syncControls();
 }
 
