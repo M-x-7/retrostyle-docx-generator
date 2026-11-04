@@ -250,6 +250,11 @@ function renderFields() {
   if (!template) return;
   const groups = {}, boxes = [], prevs = [];
   const markDirty = () => { if (cur >= 0) photos[cur].dirty = true; };
+  // 注音等輸入法還在組字時不能改輸入框的值：改了之後組字結束會再插入一次（打 123 變成 12/33），等組字結束再整理
+  const onTyped = (el, fn) => {
+    el.oninput = e => { if (!(e && e.isComposing)) fn(); };
+    el.addEventListener('compositionend', fn);
+  };
   const row = (label, cls) => {
     const l = document.createElement('div');
     l.className = cls || ('lbl' + (template.required.includes(label) ? ' req' : ''));
@@ -305,8 +310,8 @@ function renderFields() {
     head.title = '日期（西元 8 碼）';
     tail.title = '流水號（▲▼ 或鍵盤上下鍵加減 1）';
     const push = () => { docFields[name] = head.value + tail.value; markDirty(); refresh(); };
-    head.oninput = () => { onlyDigits(head); push(); };
-    tail.oninput = () => { onlyDigits(tail); push(); };
+    onTyped(head, () => { onlyDigits(head); push(); });
+    onTyped(tail, () => { onlyDigits(tail); push(); });
     const bump = d => {
       tail.value = String(Math.min(10 ** len - 1, Math.max(1, (+tail.value || 0) + d))).padStart(len, '0');
       push();
@@ -347,7 +352,7 @@ function renderFields() {
       markDirty();
       refresh();
     };
-    el.oninput = changed;
+    onTyped(el, changed);
     el.onchange = changed;
     if (isDate) {   // 月日欄位沒有 ▾：選單插入的 {名稱} 會被數字過濾掉
       el.maxLength = 5;
