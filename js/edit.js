@@ -57,6 +57,8 @@ ov.addEventListener('pointerdown', e => {
   const p = toImg(e);
   if (mode === 'line') {
     drag = { id:e.pointerId, kind:'draw', pts:[p] };
+  } else if (mode === 'crop') {
+    drag = { id:e.pointerId, kind:'crop', start:p, end:p };
   } else if (mode === 'symbol') {
     if (symbols[curSym]) drag = { id:e.pointerId, kind:'stamp', start:p, angle:0 };
     drawOverlay();
@@ -99,7 +101,10 @@ ov.addEventListener('pointermove', e => {
     }
     return commit();
   }
-  if (drag.kind === 'draw') {
+  if (drag.kind === 'crop') {
+    drag.end = p;
+    drawOverlay();
+  } else if (drag.kind === 'draw') {
     if (dist(p, drag.pts[drag.pts.length - 1]) >= f) { drag.pts.push(p); drawOverlay(); }
   } else if (drag.kind === 'stamp') {
     if (dist(p, drag.start) >= 8 * f) {   // 拖曳決定方向；開啟吸附時對齊 45° 倍數
@@ -124,6 +129,7 @@ ov.addEventListener('pointerup', e => {
   if (!drag || e.pointerId !== drag.id) return;
   const d = drag, p = toImg(e), f = cssToImg();
   drag = null;
+  if (d.kind === 'crop') return finishCrop(d, f);
   if (d.kind === 'draw') finishStroke(d.pts, f);
   else if (d.kind === 'stamp') placeSymbol(d.start, d.angle);
   else if (d.kind === 'tap' && dist(p, d.start) < 10 * f) textAt(d.start);
@@ -139,6 +145,22 @@ stage.addEventListener('wheel', e => {
   zoomAt(e.clientX, e.clientY, view.z * (e.deltaY < 0 ? 1.25 : 0.8));
 }, { passive:false });
 $('sZoom').onclick = resetView;   // 狀態列的縮放比例：點一下回到整張
+
+// 裁切框（原圖座標，夾在照片範圍內、取整數）
+function cropRect(d) {
+  const x1 = Math.max(0, Math.min(d.start.x, d.end.x)), y1 = Math.max(0, Math.min(d.start.y, d.end.y));
+  const x2 = Math.min(main.width, Math.max(d.start.x, d.end.x)), y2 = Math.min(main.height, Math.max(d.start.y, d.end.y));
+  return { x:Math.round(x1), y:Math.round(y1), w:Math.round(x2 - x1), h:Math.round(y2 - y1) };
+}
+
+// 放開滑鼠：框太小當成沒框；確認後才裁（裁了不能復原）
+function finishCrop(d, f) {
+  const r = cropRect(d);
+  drawOverlay();
+  if (mode !== 'crop' || r.w < 10 * f || r.h < 10 * f) return;   // 拖到一半按了 Esc 就不裁
+  if (confirm('裁切成框選的範圍（' + r.w + '×' + r.h + '）？\n框外的標註會刪掉，這張照片的復原紀錄也會清掉。')) cropPhoto(cur, r);
+  setMode('select');
+}
 
 function finishStroke(pts, f) {
   let len = 0;

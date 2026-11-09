@@ -133,6 +133,7 @@ const HINTS = {
   line: '畫線：點一下放點、拖曳手繪（自動拉直），按住期間全部接成同一條線，放開按鍵完成；Esc 取消',
   symbol: '符號：點一下放置；按住滑鼠拖曳可決定方向（三角形指向拖曳方向）；放開按鍵回到選取',
   text: '文字：點一下照片放文字，放開按鍵再打字，Shift+Enter 換行、Enter 確定、Esc 取消；點既有文字可修改（清空即刪除）',
+  crop: '裁切：在照片上拖曳框出要留下的範圍，放開滑鼠後確認；Esc 取消',
 };
 
 /* ---------- 匯入照片（可多張） ---------- */
@@ -183,10 +184,8 @@ function addPhoto(name, im, url, file) {
   if (k < 1) toast(name + ' 過大，已縮小至 ' + Math.round(w * k) + '×' + Math.round(h * k));
   const p = { name, file, url, img:im, w:Math.round(w * k), h:Math.round(h * k), role:SITE_ROLE, items:[], undo:[], dirty:false };
 
-  const s = Math.min(THUMB_W / p.w, THUMB_H / p.h);
   p.thumb = document.createElement('canvas');
-  p.thumb.width = Math.round(p.w * s);
-  p.thumb.height = Math.round(p.h * s);
+  sizeThumb(p);
   p.thumb.getContext('2d').drawImage(im, 0, 0, p.thumb.width, p.thumb.height);
 
   p.el = document.createElement('div');
@@ -584,6 +583,18 @@ function drawOverlay() {
   };
   if (poly) { octx.fillStyle = settings.color; draft(poly.hover ? [...poly.pts, poly.hover] : poly.pts); }   // 最後一點拉到游標的預覽線
   if (drag && drag.kind === 'draw') draft(drag.pts);
+  if (drag && drag.kind === 'crop') {   // 裁切框：框外變暗
+    const r = cropRect(drag);
+    octx.fillStyle = 'rgba(0,0,0,0.55)';
+    octx.beginPath();
+    octx.rect(0, 0, main.width, main.height);
+    octx.rect(r.x, r.y, r.w, r.h);
+    octx.fill('evenodd');
+    octx.strokeStyle = '#ffb000'; octx.lineWidth = 2 * u;
+    octx.setLineDash([6 * u, 4 * u]);
+    octx.strokeRect(r.x, r.y, r.w, r.h);
+    octx.setLineDash([]);
+  }
   if (drag && drag.kind === 'stamp') {
     const s = symbols[curSym];
     octx.globalAlpha = 0.6;
@@ -833,7 +844,7 @@ function deleteSel() {
 function setMode(m) {
   mode = m;
   sel = -1;
-  ov.style.cursor = { line:'crosshair', text:'text', select:'default', symbol:'crosshair' }[m];
+  ov.style.cursor = { line:'crosshair', text:'text', select:'default', symbol:'crosshair', crop:'crosshair' }[m];
   $('hint').textContent = HINTS[m];
   renderSymbolBar();
   renderTextBar();
@@ -913,9 +924,75 @@ function openRoleMenu(p, x, y) {
     row.append(num, go);
     m.appendChild(row);
   }
+  sep('照片');
+  const act = (label, fn) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.onclick = () => { closeFieldMenu(); fn(); };
+    m.appendChild(b);
+  };
+  act('向左轉 90°', () => rotatePhoto(photos.indexOf(p), -1));
+  act('向右轉 90°', () => rotatePhoto(photos.indexOf(p), 1));
+  act('裁切…', () => { switchTo(photos.indexOf(p)); setMode('crop'); });
   sep('');
   del.textContent = '刪除';
   m.appendChild(del);
   show();
   if (num) { num.focus(); num.select(); }   // 右鍵後可以直接打數字按 Enter
+}
+
+function sizeThumb(p) {
+  const k = Math.min(THUMB_W / p.w, THUMB_H / p.h);
+  p.thumb.width = Math.round(p.w * k);
+  p.thumb.height = Math.round(p.h * k);
+}
+
+/* ---------- 照片旋轉、裁切 ----------
+   換掉照片本身（存成 JPEG），標註換算到新座標：位置用 mapPt 換、角度加 dA；
+   線寬、字級、符號大小的單位是照片長邊的 1/1000，長邊變了就乘 k，看起來才跟原本一樣大。
+   換算前的復原紀錄座標對不上了，這張照片的復原、重做一併清掉。 */
+let lastReshape = null;   // 測試用：等照片換好
+
+function reshapePhoto(i, cv, mapPt, dA, keepIt = () => true) {
+  return lastReshape = (async () => {
+    switchTo(i);   // 文字的中心要用這張照片的 unit 算
+    const p = photos[i], k = unit / (Math.max(cv.width, cv.height) / 1000);
+    items = items.filter(keepIt).map(it => {
+      if (it.type === 'line') return { ...it, pts:it.pts.map(mapPt), width:it.width * k };
+      if (it.type === 'symbol') {
+        const c = mapPt(it);
+        return { ...it, x:c.x, y:c.y, angle:(it.angle || 0) + dA, size:it.size * k, ...(it.strokeW !== undefined && { strokeW:it.strokeW * k }) };
+      }
+      const c = textCenter(it), nc = mapPt(c);   // 文字以框中心換算，框在畫面上的大小不變
+      return { ...it, x:nc.x - (c.x - it.x), y:nc.y - (c.y - it.y), angle:(it.angle || 0) + dA, size:it.size * k };
+    });
+    undoStack = []; redoStack = [];
+    saveCur();
+    const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92));
+    const { im, url } = await loadImage(blob);
+    URL.revokeObjectURL(p.url);
+    Object.assign(p, { img:im, url, file:new File([blob], p.name, { type:'image/jpeg' }), w:cv.width, h:cv.height, dirty:true });
+    sizeThumb(p);
+    switchTo(i);
+  })();
+}
+
+// dir：1＝向右（順時針）、-1＝向左
+function rotatePhoto(i, dir) {
+  const p = photos[i], w = p.w, h = p.h, cv = document.createElement('canvas');
+  cv.width = h; cv.height = w;
+  const g = cv.getContext('2d');
+  g.translate(dir > 0 ? h : 0, dir > 0 ? 0 : w);
+  g.rotate(dir * Math.PI / 2);
+  g.drawImage(p.img, 0, 0, w, h);
+  return reshapePhoto(i, cv, dir > 0 ? q => ({ x:h - q.y, y:q.x }) : q => ({ x:q.y, y:w - q.x }), dir * Math.PI / 2);
+}
+
+// r：要留下的範圍（原圖座標）；完全在框外的標註刪掉
+function cropPhoto(i, r) {
+  const p = photos[i], cv = document.createElement('canvas'), sx = p.img.naturalWidth / p.w, sy = p.img.naturalHeight / p.h;
+  cv.width = r.w; cv.height = r.h;
+  cv.getContext('2d').drawImage(p.img, r.x * sx, r.y * sy, r.w * sx, r.h * sy, 0, 0, r.w, r.h);
+  const inside = it => { const b = bbox(it); return b.x2 > r.x && b.x1 < r.x + r.w && b.y2 > r.y && b.y1 < r.y + r.h; };
+  return reshapePhoto(i, cv, q => ({ x:q.x - r.x, y:q.y - r.y }), 0, inside);
 }
