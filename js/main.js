@@ -1,7 +1,7 @@
 // 鍵盤與啟動初始化（必須最後載入）
 
 /* ---------- 鍵盤 ---------- */
-// 預設選取；按住 Space 或線型快捷鍵暫時畫線、按住符號快捷鍵暫時放符號、按住文字快捷鍵（預設 Q）暫時放文字，放開回到選取
+// 預設選取；按住線型快捷鍵暫時畫線、按住符號快捷鍵暫時放符號、按住文字快捷鍵（預設 Q）暫時放文字，放開回到選取
 const presetFor = k => presets.find(p => p.key && p.key.toLowerCase() === k);
 const symbolFor = k => symbols.findIndex(s => s.key && s.key.toLowerCase() === k);
 const textFor = k => textStyles.findIndex(s => s.key && s.key.toLowerCase() === k);
@@ -19,8 +19,8 @@ document.addEventListener('keydown', e => {
   if (ctrl && k === 'z') { e.preventDefault(); undo(); }
   else if (ctrl && k === 's') { e.preventDefault(); saveProject(); }   // 沒有照片也能存（只有修繕單欄位）
   else if (ctrl || e.altKey) return;
-  else if (k === ' ' || presetFor(k) || symbolFor(k) >= 0 || textFor(k) >= 0) {
-    if (k === ' ') e.preventDefault();   // 避免捲動頁面或觸發剛點過的按鈕
+  else if (k === ' ') e.preventDefault();   // 空白鍵沒有功能（以前能畫線，已拿掉）；擋掉以免捲動頁面或觸發剛點過的按鈕
+  else if (presetFor(k) || symbolFor(k) >= 0 || textFor(k) >= 0) {
     if (e.repeat || heldKey) return;
     const si = symbolFor(k), ti = textFor(k);
     if (presetFor(k)) applyPreset(presetFor(k));

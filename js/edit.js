@@ -355,7 +355,7 @@ $('arrow').innerHTML = options(ARROW_NAMES);
 ['dash', 'arrow'].forEach(k => $(k).onchange = e => {
   settings[k] = e.target.value;
   editing = false; applyToSel(k, settings[k]); editing = false;
-  e.target.blur();   // 讓 Space 等快捷鍵立刻可用
+  e.target.blur();   // 讓快捷鍵立刻可用
   renderPresetBar();
   saveUI();
 });
