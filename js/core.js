@@ -41,8 +41,9 @@ const DEFAULT_SYMBOLS = [
 const STROKE_NAMES = { auto:'自動', white:'白邊', black:'黑邊', none:'無' };   // 自動：依字色深淺配黑或白
 const BOX_NAMES = { none:'無', white:'白底', black:'黑底', yellow:'黃底' };
 const BOX_COLORS = { white:'#ffffff', black:'#000000', yellow:'#ffd600' };
+const ALIGN_NAMES = { left:'靠左', center:'置中', right:'靠右' };   // 多行文字每行的對齊；舊資料沒有 align＝靠左
 const DEFAULT_TEXT_STYLES = [   // size：字高，單位同線寬
-  { name:'一般文字', key:'Q', color:'#e53935', size:28, stroke:'auto', box:'none' },
+  { name:'一般文字', key:'Q', color:'#e53935', size:28, stroke:'auto', box:'none', align:'left' },
 ];
 const PRESET_STORE = 'cable-photo-annotator.presets';
 const SYMBOL_STORE = 'cable-photo-annotator.symbols';
@@ -115,7 +116,7 @@ let cur = -1;
 // 以下為目前照片的工作狀態，切換照片時存回 photos[cur]
 let img = null;
 let unit = 1;              // 線寬/字級的單位：原圖長邊的 1/1000，讓螢幕預覽與匯出比例一致
-let items = [];            // {type:'line', pts:[{x,y}], color, width, dash, arrow} | {type:'text', x, y, text, color, size, stroke, box, angle?}
+let items = [];            // {type:'line', pts:[{x,y}], color, width, dash, arrow} | {type:'text', x, y, text（可多行）, color, size, stroke, box, align?, angle?}
                            // | {type:'symbol', x, y, angle, shape, fill, color, size, label}
 let undoStack = [];
 let mode = 'select';
@@ -130,7 +131,7 @@ const HINTS = {
   select: '選取：點項目可拖曳、改顏色、Delete 刪除；雙擊文字或符號可修改；選取後拖右下角方塊縮放、拖外側圓點旋轉　｜按住線型鍵畫線、按住符號鍵放符號、按住文字鍵（預設 Q）放文字；Ctrl+V 貼上圖片',
   line: '畫線：點一下放點、拖曳手繪（自動拉直），按住期間全部接成同一條線，放開按鍵完成；Esc 取消',
   symbol: '符號：點一下放置；按住滑鼠拖曳可決定方向（三角形指向拖曳方向）；放開按鍵回到選取',
-  text: '文字：點一下照片放文字，放開按鍵再打字，Enter 確定、Esc 取消；點既有文字可修改（清空即刪除）',
+  text: '文字：點一下照片放文字，放開按鍵再打字，Shift+Enter 換行、Enter 確定、Esc 取消；點既有文字可修改（清空即刪除）',
 };
 
 /* ---------- 匯入照片（可多張） ---------- */
@@ -494,24 +495,32 @@ function drawText(c, it, px) {
   c.save();
   c.font = 'bold ' + px + 'px ' + FONT;
   c.textBaseline = 'top'; c.lineJoin = 'round';
+  const { lines, widths, w, lh } = textLines(c, it, px), h = lh * lines.length;
   if (it.angle) {   // 以文字框中心旋轉（同 textCenter）
-    const cx = it.x + c.measureText(it.text).width / 2, cy = it.y + px * 0.575;
+    const cx = it.x + w / 2, cy = it.y + h / 2;
     c.translate(cx, cy); c.rotate(it.angle); c.translate(-cx, -cy);
   }
   if (BOX_COLORS[it.box]) {
     const pad = px * 0.2;
     c.fillStyle = BOX_COLORS[it.box];
-    c.fillRect(it.x - pad, it.y - pad / 2, c.measureText(it.text).width + pad * 2, px * 1.15 + pad);
+    c.fillRect(it.x - pad, it.y - pad / 2, w + pad * 2, h + pad);
   }
+  const at = i => ({ x:it.x + ({ center:(w - widths[i]) / 2, right:w - widths[i] }[it.align] || 0), y:it.y + i * lh });   // 每行在整段寬度裡對齊
   const stroke = { auto:isLight(it.color) ? '#000' : '#fff', white:'#fff', black:'#000' }[it.stroke || 'auto'];
-  if (stroke) {   // 描邊讓字在照片上清楚
+  if (stroke) {   // 描邊讓字在照片上清楚；全部描完再填字，下一行的描邊才不會蓋到上一行的字
     c.lineWidth = px * 0.18;
     c.strokeStyle = stroke;
-    c.strokeText(it.text, it.x, it.y);
+    lines.forEach((l, i) => c.strokeText(l, at(i).x, at(i).y));
   }
   c.fillStyle = it.color;
-  c.fillText(it.text, it.x, it.y);
+  lines.forEach((l, i) => c.fillText(l, at(i).x, at(i).y));
   c.restore();
+}
+
+// 文字可以多行（輸入時 Shift+Enter）；呼叫前要先設好 c.font。(x, y) 是整段未旋轉時的左上角
+function textLines(c, it, px) {
+  const lines = String(it.text).split('\n'), widths = lines.map(l => c.measureText(l).width);
+  return { lines, widths, w:Math.max(...widths), lh:px * 1.15 };
 }
 
 function render() {
@@ -584,7 +593,8 @@ function itemHandles(it) {
 function textBox(it) {
   const px = it.size * unit, pad = BOX_COLORS[it.box] ? px * 0.2 : 0;   // 有底色框時範圍含框（同 drawText）
   mctx.font = 'bold ' + px + 'px ' + FONT;
-  return { x1:it.x - pad, y1:it.y - pad / 2, x2:it.x + mctx.measureText(it.text).width + pad, y2:it.y + px * 1.15 + pad / 2 };
+  const { lines, w, lh } = textLines(mctx, it, px);
+  return { x1:it.x - pad, y1:it.y - pad / 2, x2:it.x + w + pad, y2:it.y + lh * lines.length + pad / 2 };
 }
 
 function textCenter(it) {

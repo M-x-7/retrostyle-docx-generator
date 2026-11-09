@@ -186,7 +186,7 @@ function openLabelEditor(idx) {
   drawOverlay();
   Object.assign(te.style, {
     display:'block', left:(it.x / f - 80) + 'px', top:((it.y + it.size * unit / 2) / f + 4) + 'px',
-    fontSize:'16px', color:'#fff', width:'160px', transform:'',
+    fontSize:'16px', color:'#fff', width:'160px', transform:'', textAlign:'center',
   });
   te.value = it.label || '';
   sizeEditor();
@@ -201,7 +201,7 @@ function openEditor(p, idx) {
   edit = { idx, size,
     x: it ? it.x : p.x,
     y: it ? it.y : p.y - size * unit * 0.55,
-    color: it ? it.color : st.color, stroke:st.stroke, box:st.box };
+    color: it ? it.color : st.color, stroke:st.stroke, box:st.box, align: (it ? it.align : st.align) || 'left' };
   sel = -1;
   render();
   drawOverlay();
@@ -209,7 +209,7 @@ function openEditor(p, idx) {
   Object.assign(te.style, {
     display:'block', left:(at.x / f - 3) + 'px', top:(at.y / f - 1) + 'px',
     fontSize:(size * unit / f) + 'px', color:edit.color,
-    transform:a ? 'rotate(' + a + 'rad)' : '', transformOrigin:'3px 1px',
+    transform:a ? 'rotate(' + a + 'rad)' : '', transformOrigin:'3px 1px', textAlign:edit.align,
   });
   te.value = it ? it.text : '';
   sizeEditor();
@@ -219,18 +219,18 @@ function openEditor(p, idx) {
 }
 
 function sizeEditor() {
-  te.rows = edit.label ? te.value.split('\n').length : 1;   // 只有符號內文會有多行
+  te.rows = te.value.split('\n').length;   // 符號內文、照片上的文字都可以 Shift+Enter 換行
   if (edit.label) return;
   const px = edit.size * unit;
   mctx.font = 'bold ' + px + 'px ' + FONT;
-  te.style.width = (mctx.measureText(te.value || te.placeholder).width + px) / cssToImg() + 'px';
+  const w = Math.max(...(te.value || te.placeholder).split('\n').map(l => mctx.measureText(l).width));
+  te.style.width = (w + px) / cssToImg() + 'px';
 }
 
 function finishEdit(ok) {
   if (!edit) return;
-  // 符號內文每行去頭尾空白、丟掉空行；照片上的文字只有一行（貼上多行時換行當空白）
-  const e = edit, lines = te.value.split('\n').map(l => l.trim());
-  const text = e.label ? lines.filter(Boolean).join('\n') : lines.join(' ').trim();
+  // 每行去頭尾空白、丟掉空行（符號內文、照片上的文字都一樣）
+  const e = edit, text = te.value.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
   edit = null;
   te.style.display = 'none';
   const it = e.idx >= 0 ? items[e.idx] : null;
@@ -242,7 +242,7 @@ function finishEdit(ok) {
     else items.splice(e.idx, 1);
   } else if (ok && !it && text) {
     pushUndo();
-    items.push({ type:'text', x:e.x, y:e.y, text, color:e.color, size:e.size, stroke:e.stroke, box:e.box });
+    items.push({ type:'text', x:e.x, y:e.y, text, color:e.color, size:e.size, stroke:e.stroke, box:e.box, align:e.align });
   }
   commit();
 }
@@ -251,7 +251,7 @@ te.addEventListener('input', sizeEditor);
 te.addEventListener('blur', () => finishEdit(true));
 te.addEventListener('keydown', e => {
   if (e.isComposing || e.keyCode === 229) return;   // 注音/倉頡選字中的 Enter 不算確定
-  if (e.key === 'Enter' && e.shiftKey && edit && edit.label) return;   // 符號內文 Shift+Enter 換行（照樣插入換行，input 事件會調高度）
+  if (e.key === 'Enter' && e.shiftKey) return;   // Shift+Enter 換行（照樣插入換行，input 事件會調高度）
   if (e.key === 'Enter') { e.preventDefault(); finishEdit(true); }
   else if (e.key === 'Escape') finishEdit(false);
 });
@@ -261,6 +261,7 @@ function applyToSel(prop, val) {
   if (sel < 0) return;
   const it = items[sel];
   if (['width', 'dash', 'arrow'].includes(prop) && it.type !== 'line') return;
+  if (prop === 'align' && it.type !== 'text') return;
   if (!editing) { pushUndo(); editing = true; }
   it[prop] = val;
   commit();
@@ -281,6 +282,8 @@ function syncStyleBar() {
   Object.assign($('width'), { min:S.min, max:S.max, value:v });
   $('widthV').textContent = v;
   $('lineOpts').style.display = kind === 'line' ? '' : 'none';   // 線型、箭頭只對線有意義
+  $('textOpts').style.display = kind === 'text' ? '' : 'none';   // 對齊只對文字有意義
+  $('align').value = kind === 'text' ? it.align || 'left' : 'left';
   $('dash').value = it ? it.dash : settings.dash;
   $('arrow').value = it ? it.arrow : settings.arrow;
   $('color').value = color;
@@ -350,6 +353,11 @@ $('sens').oninput = () => { settings.sens = +$('sens').value; $('sensV').textCon
 ['width', 'sens'].forEach(k => { $(k).onchange = () => { editing = false; saveUI(); }; });
 
 const options = map => Object.entries(map).map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('');
+$('align').innerHTML = options(ALIGN_NAMES);
+$('align').onchange = e => {
+  editing = false; applyToSel('align', e.target.value); editing = false;
+  e.target.blur();   // 讓快捷鍵立刻可用
+};
 $('dash').innerHTML = options(DASH_NAMES);
 $('arrow').innerHTML = options(ARROW_NAMES);
 ['dash', 'arrow'].forEach(k => $(k).onchange = e => {
@@ -400,7 +408,7 @@ function renderTextBar() {
     b.onclick = () => {   // 滑鼠只用來換選取中文字的樣式；放文字一律按住快捷鍵（使用者指定）
       if (sel < 0 || items[sel].type !== 'text') return;
       pushUndo();
-      keepTextStart(items[sel], () => ['color', 'size', 'stroke', 'box'].forEach(k => { items[sel][k] = s[k]; }));
+      keepTextStart(items[sel], () => ['color', 'size', 'stroke', 'box', 'align'].forEach(k => { items[sel][k] = k === 'align' ? s.align || 'left' : s[k]; }));
       commit();
     };
     bar.appendChild(b);
@@ -451,7 +459,7 @@ const SYMBOL_COLS = [
 ];
 const TSTYLE_COLS = [
   { k:'name', t:'text', max:12 }, { k:'key', t:'key' }, { k:'color', t:'color' }, { k:'size', t:'number', min:10, max:80 },
-  { k:'stroke', t:'select', opts:STROKE_NAMES }, { k:'box', t:'select', opts:BOX_NAMES },
+  { k:'stroke', t:'select', opts:STROKE_NAMES }, { k:'box', t:'select', opts:BOX_NAMES }, { k:'align', t:'select', opts:ALIGN_NAMES },
 ];
 const TEXT_COLS = [{ k:'name', t:'text', max:20 }, { k:'text', t:'text', max:200 }];
 function prevCell(text) {
@@ -562,7 +570,7 @@ function fillTables(lines, syms, texts) {
   ['lineTable', 'symTable', 'tstyleTable'].forEach(t => { $(t).tBodies[0].innerHTML = ''; });
   lines.forEach(p => addRow('line', p));
   syms.forEach(s => addRow('symbol', symbolRow(s)));
-  texts.forEach(s => addRow('tstyle', s));
+  texts.forEach(s => addRow('tstyle', { align:'left', ...s }));   // 舊的文字樣式沒有對齊＝靠左
 }
 
 document.querySelectorAll('.openPresets').forEach(b => b.onclick = () => {
@@ -572,7 +580,7 @@ document.querySelectorAll('.openPresets').forEach(b => b.onclick = () => {
 $('pAddLine').onclick = () => addRow('line', { name:'新線型', key:'', color:settings.color, width:settings.width, dash:settings.dash, arrow:settings.arrow });
 $('pAddSym').onclick = () => addRow('symbol', { name:'新符號', key:'', shape:'circle', fill:'solid', color:settings.color, color2:'#ffffff',
   stroke:settings.color, strokeW:3, size:120, label:'' });
-$('pAddText').onclick = () => addRow('tstyle', { name:'新文字', key:'', color:settings.color, size:28, stroke:'auto', box:'none' });
+$('pAddText').onclick = () => addRow('tstyle', { name:'新文字', key:'', color:settings.color, size:28, stroke:'auto', box:'none', align:'left' });
 $('pReset').onclick = () => fillTables(DEFAULT_PRESETS, DEFAULT_SYMBOLS, DEFAULT_TEXT_STYLES);
 $('pCancel').onclick = () => showModal('dlgPresets', false);
 $('pOk').onclick = () => {

@@ -51,6 +51,9 @@
         <label class="opt">線型 <select id="dash"></select></label>
         <label class="opt">箭頭 <select id="arrow"></select></label>
       </span>
+      <span id="textOpts" class="group">
+        <label class="opt" title="多行文字每一行的對齊方式">對齊 <select id="align"></select></label>
+      </span>
     </fieldset>
     <fieldset><legend>拉直</legend>
       <label class="opt" title="數字越大：抖動容忍越高、線段越少越直">靈敏度 <input type="range" id="sens" min="1" max="10"> <span class="val" id="sensV"></span></label>
@@ -100,7 +103,7 @@
       <div class="row"><button id="pAddLine">新增線型</button></div>
       <div class="sect">文字</div>
       <table class="ptable" id="tstyleTable">
-        <thead><tr><th>預覽</th><th>名稱</th><th>快捷鍵</th><th>顏色</th><th>字級</th><th>描邊</th><th>底色</th><th></th></tr></thead>
+        <thead><tr><th>預覽</th><th>名稱</th><th>快捷鍵</th><th>顏色</th><th>字級</th><th>描邊</th><th>底色</th><th>對齊</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
       <div class="row"><button id="pAddText">新增文字樣式</button></div>
@@ -113,7 +116,7 @@
       <div class="note">
         標註只能用快捷鍵放；工具列的按鈕是對照表，只有在選取了線或文字時，點按鈕可以把它換成那個線型或文字樣式。<br>
         線型：按住快捷鍵點照片放點、拖曳手繪，按住期間全部接成同一條線，放開按鍵完成並回到選取。<br>
-        文字：按住快捷鍵點照片放文字，放開按鍵再打字。描邊「自動」依字色深淺配黑或白。<br>
+        文字：按住快捷鍵點照片放文字，放開按鍵再打字，Shift+Enter 換行、Enter 確定。「對齊」是多行時每一行的對齊方式；選取文字後也能在工具列的樣式區單獨改。描邊「自動」依字色深淺配黑或白。<br>
         符號：按住快捷鍵點照片放置；按住滑鼠拖曳可決定方向（三角形指向拖曳方向；異色半邊、小圓、小三角也跟著轉）。「第二色」用在半邊異色、內含小圓、內含小三角，以及六角形、方形的框內；「描邊粗細」0＝不描邊。<br>
         內文用 Shift+Enter 換行（Enter 是確定），空白就是空白；放上去之後在選取模式雙擊符號可個別修改內文，一樣用 Shift+Enter 換行。<br>
         快捷鍵限英文字母或數字，線型、文字、符號之間不可重複；文字樣式至少要留一個。
@@ -173,8 +176,8 @@
 <div id="menu"></div>
 
 <!-- 依序載入，順序不能換：頂層程式碼只能呼叫「已經載入」的檔案裡的函式 -->
-<script src="js/core.js?v=4d63beb5"></script>
-<script src="js/edit.js?v=ab5d6897"></script>
+<script src="js/core.js?v=a77d5544"></script>
+<script src="js/edit.js?v=7a6b58e9"></script>
 <script src="js/word.js?v=993943f8"></script>
 <script src="js/fields.js?v=666df4d6"></script>
 <script src="js/main.js?v=af61a9c9"></script>
