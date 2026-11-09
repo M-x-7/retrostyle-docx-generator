@@ -297,8 +297,10 @@ function paraTexts(doc) {
 const SETTINGS_TITLE = '範本設定';
 const FIELD_TYPES = ['文字', '多行', '數字', '月日', '流水號', '選項', '對照'];
 const childrenOf = (el, tag) => [...el.children].filter(n => n.localName === tag);
+// 段落之間、格子裡的 Shift+Enter（<w:br/>）都算換行
 const cellText = tc => [...tc.getElementsByTagNameNS(NS.w, 'p')]
-  .map(p => [...p.getElementsByTagNameNS(NS.w, 't')].map(t => t.textContent).join('')).join('\n').trim();
+  .map(p => [...p.getElementsByTagNameNS(NS.w, '*')].map(n => n.localName === 't' ? n.textContent : n.localName === 'br' ? '\n' : '').join(''))
+  .join('\n').trim();
 
 function settingsTable(doc) {
   return [...doc.getElementsByTagNameNS(NS.w, 'tbl')].find(t => {
@@ -314,7 +316,7 @@ function parseSettings(tbl) {
   const at = (r, key) => col(key) >= 0 ? (r[col(key)] || '') : '';
   const defs = [], problems = [];
   for (const r of rows.slice(2)) {
-    const d = { name:at(r, '欄位'), type:at(r, '類型'), opts:at(r, '選項'), def:at(r, '預設'), req:!!at(r, '必填') };
+    const d = { name:at(r, '欄位'), type:at(r, '類型'), opts:at(r, '選項'), def:at(r, '預設'), req:!!at(r, '必填'), cands:at(r, '候選') };
     if (!d.name) continue;
     if (!d.type) d.type = d.opts ? '選項' : '文字';
     else if (!FIELD_TYPES.includes(d.type)) {

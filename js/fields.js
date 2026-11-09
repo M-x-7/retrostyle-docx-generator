@@ -13,7 +13,7 @@ const parseOpts = s => (s || '').split(/[\/／\n]/).map(x => x.trim()).filter(Bo
 });
 
 /* ---------- 範本設定表的欄位規則（word.js parseSettings 讀出來放在 template.defs） ----------
-   {name, type: 文字|多行|數字|月日|流水號|選項|對照, opts, def, req}
+   {name, type: 文字|多行|數字|月日|流水號|選項|對照, opts, def, req, cands}；cands＝候選文字，一行一句，▾ 選單直接挑
    預設值以 = 開頭＝公式：保留 {名稱} 原樣、匯出時才展開，引用的欄位改了會跟著變；
    不是 = 開頭就在開對話框帶入的當下展開成固定文字（例 建立日期 {今天}）。 */
 const LIVE = /^[=＝]/;
@@ -106,7 +106,7 @@ function templateProblems() {
   if (unknown.length) out.push('標成必填，但找不到這些欄位：' + unknown.join('、'));
   const known = n => BUILTIN[n] || defOf(n) || template.fields.includes(n) || snippets.some(x => x.name === n);
   for (const d of template.defs) {
-    for (const m of (d.def + '\n' + d.opts).matchAll(/\{([^{}]+)\}/g)) {
+    for (const m of (d.def + '\n' + d.opts + '\n' + d.cands).matchAll(/\{([^{}]+)\}/g)) {
       const n = m[1].split(/[=＝]/)[0].trim();
       if (!known(n)) out.push('「' + d.name + '」引用了不存在的 {' + n + '}');
     }
@@ -183,6 +183,11 @@ function openFieldMenu(btn, name, el) {
   };
   const brief = v => v.replace(/\s+/g, ' ').slice(0, 24);
   const ref = (n, v) => item('{' + n + '}　' + brief(v), '插入 {' + n + '}，匯出時換成：' + v, () => insert('{' + n + '}'));
+  const cands = ((defOf(name) || {}).cands || '').split('\n').map(c => c.trim()).filter(Boolean);
+  if (cands.length) {   // 範本設定表的「候選」欄：整欄換成那一句
+    sep('候選（整欄取代）');
+    cands.forEach(c => item(brief(c), expand(c), () => { el.value = c; fire(); }));
+  }
   if (snippets.length) {
     sep('常用字串');
     snippets.forEach(x => ref(x.name, expand(x.text)));
