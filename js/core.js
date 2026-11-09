@@ -119,6 +119,7 @@ let unit = 1;              // 線寬/字級的單位：原圖長邊的 1/1000，
 let items = [];            // {type:'line', pts:[{x,y}], color, width, dash, arrow} | {type:'text', x, y, text（可多行）, color, size, stroke, box, align?, angle?}
                            // | {type:'symbol', x, y, angle, shape, fill, color, size, label}
 let undoStack = [];
+let redoStack = [];         // 復原掉的步驟，Ctrl+Y／Ctrl+Shift+Z 重做；有新的修改就清掉
 let mode = 'select';
 let sel = -1;
 let drag = null;
@@ -275,14 +276,14 @@ function movePhoto(src, target, after) {
 }
 
 function saveCur() {
-  if (cur >= 0) { photos[cur].items = items; photos[cur].undo = undoStack; }
+  if (cur >= 0) { photos[cur].items = items; photos[cur].undo = undoStack; photos[cur].redo = redoStack; }
 }
 
 function switchTo(i) {
   saveCur();
   cur = i;
   const p = photos[i];
-  img = p.img; items = p.items; undoStack = p.undo;
+  img = p.img; items = p.items; undoStack = p.undo; redoStack = p.redo || [];
   main.width = p.w; main.height = p.h;
   unit = Math.max(p.w, p.h) / 1000;
   sel = -1; drag = null;
@@ -293,7 +294,7 @@ function switchTo(i) {
 }
 
 function clearCurrent() {
-  img = null; items = []; undoStack = []; sel = -1;
+  img = null; items = []; undoStack = []; redoStack = []; sel = -1;
   commit();
 }
 
@@ -730,6 +731,7 @@ function straighten(pts, eps, snap) {
 function pushUndo() {
   undoStack.push(JSON.stringify(items));
   if (undoStack.length > 100) undoStack.shift();
+  redoStack = [];
   photos[cur].dirty = true;
 }
 
@@ -740,6 +742,7 @@ function commit() {
   $('empty').style.display = img ? 'none' : '';
   wrap.style.display = img ? 'block' : 'none';
   $('bUndo').disabled = !undoStack.length;
+  $('bRedo').disabled = !redoStack.length;
   $('bDel').disabled = sel < 0;
   ['bClear', 'bCopy'].forEach(id => $(id).disabled = !img);   // 匯出 Word、儲存專案沒有照片也能用
   $('bSaveAll').disabled = !photos.length;   // 單張的「匯出 PNG」已移除，只有一張時也要能用
@@ -767,7 +770,17 @@ function cntText(p, list) {
 
 function undo() {
   if (!undoStack.length) return;
+  redoStack.push(JSON.stringify(items));
   items = JSON.parse(undoStack.pop());
+  sel = -1;
+  commit();
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(JSON.stringify(items));
+  items = JSON.parse(redoStack.pop());
+  photos[cur].dirty = true;
   sel = -1;
   commit();
 }

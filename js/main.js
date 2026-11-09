@@ -16,7 +16,8 @@ document.addEventListener('keydown', e => {
   }
   if (e.target instanceof Element && e.target.matches(TYPING)) return;
   const k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
-  if (ctrl && k === 'z') { e.preventDefault(); undo(); }
+  if (ctrl && k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if (ctrl && (k === 'y' || k === 'z')) { e.preventDefault(); redo(); }   // Ctrl+Y 或 Ctrl+Shift+Z
   else if (ctrl && k === 's') { e.preventDefault(); saveProject(); }   // 沒有照片也能存（只有修繕單欄位）
   else if (ctrl || e.altKey) return;
   else if (k === ' ') e.preventDefault();   // 空白鍵沒有功能（以前能畫線，已拿掉）；擋掉以免捲動頁面或觸發剛點過的按鈕

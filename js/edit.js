@@ -277,6 +277,8 @@ const SLIDERS = {
 // 工具列的顏色、滑桿、線型、箭頭：有選取時顯示那個項目的值，否則顯示畫新線用的設定（commit() 每次都會呼叫）
 function syncStyleBar() {
   const it = sel >= 0 ? items[sel] : null, kind = it ? it.type : 'line', S = SLIDERS[kind];
+  // 沒選取時顏色、樣式整區停用：新畫的線一律用線型快捷鍵帶的設定，這時調了也用不到
+  ['fsColor', 'fsStyle'].forEach(id => { $(id).disabled = !it; $(id).title = it ? '' : '先選取線、文字或符號才能改'; });
   const v = it ? it[S.prop] : settings.width, color = it ? it.color : settings.color;
   $('widthL').textContent = S.label;
   Object.assign($('width'), { min:S.min, max:S.max, value:v });

@@ -27,7 +27,8 @@
       <button id="bCopy">複製圖片</button>
     </fieldset>
     <fieldset><legend>編輯</legend>
-      <button id="bUndo">復原</button>
+      <button id="bUndo" title="Ctrl+Z">復原</button>
+      <button id="bRedo" title="Ctrl+Y 或 Ctrl+Shift+Z">重做</button>
       <button id="bDel">刪除選取</button>
       <button id="bClear">全部清除</button>
     </fieldset>
@@ -41,11 +42,11 @@
       <span id="symbolBar" class="group"></span>
       <button class="openPresets" title="線型・文字・符號・快捷鍵設定">線型/文字/符號設定…</button>
     </fieldset>
-    <fieldset><legend>顏色</legend>
+    <fieldset id="fsColor"><legend>顏色</legend>
       <span id="swatches" class="group"></span>
       <input type="color" id="color" title="自訂顏色">
     </fieldset>
-    <fieldset><legend>樣式</legend>
+    <fieldset id="fsStyle"><legend>樣式</legend>
       <label class="opt" title="選取文字時是字級、選取符號時是大小"><span id="widthL">線寬</span> <input type="range" id="width" min="1" max="15"> <span class="val" id="widthV"></span></label>
       <span id="lineOpts" class="group">
         <label class="opt">線型 <select id="dash"></select></label>
@@ -176,10 +177,10 @@
 <div id="menu"></div>
 
 <!-- 依序載入，順序不能換：頂層程式碼只能呼叫「已經載入」的檔案裡的函式 -->
-<script src="js/core.js?v=2c864c05"></script>
-<script src="js/edit.js?v=7a6b58e9"></script>
-<script src="js/word.js?v=1d95be39"></script>
+<script src="js/core.js?v=039706ae"></script>
+<script src="js/edit.js?v=3dadea76"></script>
+<script src="js/word.js?v=7cad4b06"></script>
 <script src="js/fields.js?v=666df4d6"></script>
-<script src="js/main.js?v=af61a9c9"></script>
+<script src="js/main.js?v=4817ac17"></script>
 </body>
 </html>
