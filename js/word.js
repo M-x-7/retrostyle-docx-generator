@@ -22,22 +22,21 @@ function downloadBlob(blob, name) {
 
 const baseName = name => name.replace(/\.[^.]+$/, '');
 
-function downloadCurrent() {
-  return new Promise(resolve => main.toBlob(blob => {
-    downloadBlob(blob, baseName(photos[cur].name) + '_標註.png');
-    resolve();
-  }, 'image/png'));
-}
-
+// 全部 PNG：每張照片的標註圖打包成一個 .zip 下載（使用者要求，原本是一張一張下載）
 $('bSaveAll').onclick = async () => {
-  const back = cur;
+  const back = cur, files = [], used = {};
   for (let i = 0; i < photos.length; i++) {
     switchTo(i);
-    await downloadCurrent();
-    await new Promise(r => setTimeout(r, 300));   // 連續下載間隔，避免瀏覽器漏掉
+    let name = baseName(photos[i].name) + '_標註';
+    used[name] = (used[name] || 0) + 1;
+    if (used[name] > 1) name += '(' + used[name] + ')';   // 同名的照片不要在 zip 裡互相蓋掉
+    const blob = await new Promise(r => main.toBlob(r, 'image/png'));
+    files.push({ name:name + '.png', data:new Uint8Array(await blob.arrayBuffer()) });
   }
   switchTo(back);
-  toast('已匯出 ' + photos.length + ' 張（瀏覽器若詢問「下載多個檔案」請按允許）');
+  const zipName = docName() + '_標註照片.zip';
+  downloadBlob(makeZip(files, 'application/zip'), zipName);
+  toast('已匯出 ' + files.length + ' 張：' + zipName);
 };
 
 $('bCopy').onclick = async () => {
@@ -46,7 +45,7 @@ $('bCopy').onclick = async () => {
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': new Promise(r => main.toBlob(r, 'image/png')) })]);
     toast('已複製，可在 Word 直接 Ctrl+V 貼上');
   } catch (err) {
-    alert('此瀏覽器無法直接複製圖片，請改用「全部 PNG」後插入 Word。');
+    alert('此瀏覽器無法直接複製圖片，請改用「全部 PNG」（下載 ZIP，解壓縮後）插入 Word。');
   }
 };
 
@@ -163,22 +162,24 @@ function crc32(buf) {
   return (c ^ 0xFFFFFFFF) >>> 0;
 }
 
-// 不壓縮（STORE）的 zip；照片本身已是 JPEG，壓縮也省不了多少
-function makeZip(files) {
-  const enc = new TextEncoder(), parts = [], central = [];
+// 不壓縮（STORE）的 zip；照片本身已是 JPEG／PNG，壓縮也省不了多少。Word 檔與「全部 PNG」都用它
+function makeZip(files, type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+  const enc = new TextEncoder(), parts = [], central = [], now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);   // 解壓後檔案時間＝匯出當下
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
   let offset = 0;
   for (const f of files) {
     const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data;
     const crc = crc32(data), size = data.length;
     const h = new DataView(new ArrayBuffer(30));
-    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);
-    h.setUint16(12, 0x21, true);   // 日期 1980-01-01
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);   // 0x0800：檔名是 UTF-8
+    h.setUint16(10, dosTime, true); h.setUint16(12, dosDate, true);
     h.setUint32(14, crc, true); h.setUint32(18, size, true); h.setUint32(22, size, true);
     h.setUint16(26, name.length, true);
     parts.push(h, name, data);
     const c = new DataView(new ArrayBuffer(46));
     c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
-    c.setUint16(14, 0x21, true);
+    c.setUint16(12, dosTime, true); c.setUint16(14, dosDate, true);
     c.setUint32(16, crc, true); c.setUint32(20, size, true); c.setUint32(24, size, true);
     c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
     central.push(c, name);
@@ -188,7 +189,7 @@ function makeZip(files) {
   const e = new DataView(new ArrayBuffer(22));
   e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
   e.setUint32(12, cdSize, true); e.setUint32(16, offset, true);
-  return new Blob([...parts, ...central, e], { type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  return new Blob([...parts, ...central, e], { type });
 }
 
 const xmlEsc = s => s.replace(/[<>&"]/g, c => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;' }[c]));
