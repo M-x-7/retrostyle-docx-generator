@@ -64,7 +64,7 @@ function blobToDataURL(blob) {
 async function saveProject() {
   saveCur();
   const data = { app:PROJECT_APP, version:2, fields:docFields, photos:[] };   // 2＝符號內文用換行字元；舊專案檔還有 title（簡易版面的標題，已移除），讀的時候忽略
-  for (const p of photos) data.photos.push({ name:p.name, role:p.role, items:p.items, image:await blobToDataURL(p.file) });
+  for (const p of photos) data.photos.push({ name:p.name, role:p.role, items:p.items, crop:p.crop, rot:p.rot, image:await blobToDataURL(p.file) });
   const fname = docName() + '_專案.json';
   downloadBlob(new Blob([JSON.stringify(data)], { type:'application/json' }), fname);
   photos.forEach(p => { p.dirty = false; });
@@ -87,6 +87,7 @@ async function openProject(file) {
     const { im, url } = await loadImage(blob);
     const p = addPhoto(d.name, im, url, blob);
     p.items = d.items || [];
+    p.crop = d.crop || null; p.rot = d.rot || 0;   // 舊檔沒有＝整張、沒轉
     if ((data.version || 1) < 2) oldLabels(p.items.filter(it => it.type === 'symbol'));   // 舊檔的符號內文用空白換行
     p.role = d.role || SITE_ROLE;   // 舊專案檔裡的 desc（照片說明，已移除的功能）直接忽略
   }
@@ -433,7 +434,7 @@ async function buildFromTemplate() {
     const n = media.length + 1;
     media.push({ name:'word/media/cpa_' + n + '.jpg', data:await currentJpeg() });
     rels.push('<Relationship Id="rIdCpa' + n + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/cpa_' + n + '.jpg"/>');
-    return { id:90000 + n, rid:'rIdCpa' + n, w:photos[i].w, h:photos[i].h };
+    return { id:90000 + n, rid:'rIdCpa' + n, w:main.width, h:main.height };   // 裁切、轉向後的大小
   };
   // 回傳 {xml, w, h}：w/h 是縮放後的 twip，現場照片要用 h 去撐段落高度
   // boxW 是這張圖可用的寬度（儲存格內寬），浮動圖靠它算格內置中的水平位移
@@ -548,7 +549,7 @@ let autosaveReady = false, autosaving = false, savedSession = '', savedFiles = {
 function sessionData() {
   saveCur();
   return { fields:docFields, cur, unsaved:photos.some(p => p.dirty),
-    photos:photos.map(p => ({ id:p.id, name:p.name, role:p.role, items:p.items })) };
+    photos:photos.map(p => ({ id:p.id, name:p.name, role:p.role, items:p.items, crop:p.crop, rot:p.rot })) };
 }
 
 async function autosave() {
@@ -581,7 +582,7 @@ async function restoreSession(d) {
     if (!blob) continue;
     const { im, url } = await loadImage(blob);
     const p = addPhoto(sp.name, im, url, blob);
-    Object.assign(p, { id:sp.id, items:sp.items || [], role:sp.role || SITE_ROLE, dirty:true });   // 還原的還沒存成專案檔
+    Object.assign(p, { id:sp.id, items:sp.items || [], role:sp.role || SITE_ROLE, crop:sp.crop || null, rot:sp.rot || 0, dirty:true });   // 還原的還沒存成專案檔
     savedFiles[p.id] = p.fileVer;
   }
   renumber();

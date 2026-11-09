@@ -120,7 +120,6 @@ let items = [];            // {type:'line', pts:[{x,y}], color, width, dash, arr
                            // | {type:'symbol', x, y, angle, shape, fill, color, size, label}
 let undoStack = [];
 let redoStack = [];         // 上一步退掉的步驟，Ctrl+Y／Ctrl+Shift+Z 下一步；有新的修改就清掉
-let fileSeq = 0;           // 照片檔的版本號（全域遞增，每個不同的照片檔都不一樣；自動暫存靠它判斷要不要重存）
 let mode = 'select';
 let sel = -1;
 let drag = null;
@@ -135,7 +134,7 @@ const HINTS = {
   line: '畫線：點一下放點、拖曳手繪，放開按鍵完成；Esc 取消',
   symbol: '符號：點一下放置，按住滑鼠拖曳決定方向；放開按鍵回到選取',
   text: '文字：點一下放文字，放開按鍵再打字；Shift+Enter 換行、Enter 確定、Esc 取消',
-  crop: '裁切：拖曳框出要留下的範圍，放開就裁（可按上一步退回）；Esc 取消',
+  crop: '裁切：拖曳框出要顯示與輸出的範圍，放開就套用（原圖保留，可再調整或取消）；Esc 取消',
 };
 
 /* ---------- 匯入照片（可多張） ---------- */
@@ -185,7 +184,8 @@ function addPhoto(name, im, url, file) {
   const k = Math.min(1, Math.sqrt(MAX_PIXELS / (w * h)));
   if (k < 1) toast(name + ' 過大，已縮小至 ' + Math.round(w * k) + '×' + Math.round(h * k));
   const p = { name, file, url, img:im, w:Math.round(w * k), h:Math.round(h * k), role:SITE_ROLE, items:[], undo:[], dirty:false,
-    id:Date.now().toString(36) + Math.random().toString(36).slice(2, 8), fileVer:++fileSeq };   // id、fileVer：自動暫存用（照片檔換了才重存）
+    id:Date.now().toString(36) + Math.random().toString(36).slice(2, 8), fileVer:1,   // id、fileVer：自動暫存用
+    crop:null, rot:0 };   // 裁切範圍、轉向：只改顯示與輸出，原圖與標註座標不動（viewOf）
 
   p.thumb = document.createElement('canvas');
   sizeThumb(p);
@@ -286,13 +286,12 @@ function switchTo(i) {
   cur = i;
   const p = photos[i];
   img = p.img; items = p.items; undoStack = p.undo; redoStack = p.redo || [];
-  main.width = p.w; main.height = p.h;
-  unit = Math.max(p.w, p.h) / 1000;
+  unit = Math.max(p.w, p.h) / 1000;   // 以原圖長邊為單位：裁切、轉向不影響標註大小
   sel = -1; drag = null;
   view = { z:1, x:0, y:0 };   // 換照片回到整張
   photos.forEach((q, j) => q.el.classList.toggle('on', j === i));
   p.el.scrollIntoView({ block:'nearest', inline:'nearest' });
-  layout();
+  applyView();
   commit();
 }
 
@@ -460,7 +459,8 @@ function symbolLook(s, r) {
   return { body:s.color, stroke:s.color, lw:TWO_TONE.includes(s.shape) ? r * 0.08 : 0 };
 }
 
-function drawSymbol(c, s, r) {
+// turn：照片轉了多少（內文要再轉回來才是正的）
+function drawSymbol(c, s, r, turn = 0) {
   const look = symbolLook(s, r);
   c.save();
   c.translate(s.x, s.y);
@@ -500,7 +500,7 @@ function drawSymbol(c, s, r) {
   if (look.lw > 0 && !look.body) strokeOut(true);
   const label = (s.label || '').trim();
   if (label) {
-    c.rotate(-(s.angle || 0));   // 內文保持水平
+    c.rotate(-(s.angle || 0) - turn);   // 內文在畫面上保持水平
     const lines = label.split('\n').map(l => l.trim());   // 輸入時 Shift+Enter 換行；空白就是空白
     const box = r * (s.shape === 'triangle' || s.shape === 'triIn' ? 0.9 : 1.4);   // 圖形內可放字的寬高
     c.font = 'bold 100px ' + FONT;
@@ -525,7 +525,7 @@ function drawSymbol(c, s, r) {
 
 function drawItem(c, it) {
   if (it.type === 'line') return strokeLine(c, it.pts, it.color, it.width * unit, it.dash, it.arrow);
-  if (it.type === 'symbol') return drawSymbol(c, it, it.size * unit / 2);
+  if (it.type === 'symbol') return drawSymbol(c, it, it.size * unit / 2, turn);
   drawText(c, it, it.size * unit);
 }
 
@@ -564,8 +564,10 @@ function textLines(c, it, px) {
 
 function render() {
   if (!img) return;
-  mctx.drawImage(img, 0, 0, main.width, main.height);
+  mctx.setTransform(...vm);   // 標註、照片都用原圖座標畫，由顯示矩陣裁切、轉向
+  mctx.drawImage(img, 0, 0, photos[cur].w, photos[cur].h);
   items.forEach((it, i) => { if (!edit || i !== edit.idx || edit.label) drawItem(mctx, it); });   // 編輯中的文字由輸入框顯示
+  mctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
 // 疊加層：繪製中的草稿線與選取框，不會進入匯出圖
@@ -574,7 +576,7 @@ function drawOverlay() {
   octx.clearRect(0, 0, ov.width, ov.height);
   if (!img) return;
   const k = ov.width / main.width, u = devPx();   // k：疊加層畫布的比例；u：一個螢幕像素＝多少原圖單位（選取框、把手的大小）
-  octx.setTransform(k, 0, 0, k, 0, 0);
+  octx.setTransform(k * vm[0], k * vm[1], k * vm[2], k * vm[3], k * vm[4], k * vm[5]);   // 跟畫布一樣用原圖座標畫
   const draft = pts => {
     octx.strokeStyle = settings.color; octx.globalAlpha = 0.6;
     octx.lineWidth = settings.width * unit; octx.lineJoin = octx.lineCap = 'round';
@@ -586,11 +588,12 @@ function drawOverlay() {
   };
   if (poly) { octx.fillStyle = settings.color; draft(poly.hover ? [...poly.pts, poly.hover] : poly.pts); }   // 最後一點拉到游標的預覽線
   if (drag && drag.kind === 'draw') draft(drag.pts);
-  if (drag && drag.kind === 'crop') {   // 裁切框：框外變暗
-    const r = cropRect(drag);
+  const shown = drag && drag.kind === 'crop' ? cropRect(drag) : mode === 'crop' && photos[cur].crop;
+  if (shown) {   // 裁切模式：框外變暗（拖曳中是新框，還沒拖是目前的範圍）
+    const r = shown;
     octx.fillStyle = 'rgba(0,0,0,0.55)';
     octx.beginPath();
-    octx.rect(0, 0, main.width, main.height);
+    octx.rect(0, 0, photos[cur].w, photos[cur].h);
     octx.rect(r.x, r.y, r.w, r.h);
     octx.fill('evenodd');
     octx.strokeStyle = '#ffb000'; octx.lineWidth = 2 * u;
@@ -601,7 +604,7 @@ function drawOverlay() {
   if (drag && drag.kind === 'stamp') {
     const s = symbols[curSym];
     octx.globalAlpha = 0.6;
-    drawSymbol(octx, { ...s, x:drag.start.x, y:drag.start.y, angle:drag.angle }, s.size * unit / 2);
+    drawSymbol(octx, { ...s, x:drag.start.x, y:drag.start.y, angle:drag.angle }, s.size * unit / 2, turn);
     octx.globalAlpha = 1;
   }
   if (sel >= 0) {
@@ -802,7 +805,7 @@ function commit() {
   const counts = [['線', count('line')], ['字', count('text')], ['符號', count('symbol')]];
   $('title').textContent = p ? '復古風DOCX生成工具 - ' + p.name : '復古風DOCX生成工具';
   $('sPhoto').textContent = p ? '照片 ' + (cur + 1) + ' / ' + photos.length : '無照片';
-  $('sSize').textContent = p ? p.w + '×' + p.h : '';
+  $('sSize').textContent = p ? main.width + '×' + main.height : '';   // 輸出的大小（裁切、轉向後）
   if (!p) $('sZoom').textContent = '';
   $('sCount').textContent = p ? counts.map(([n, c]) => n + ' ' + c).join('　') : '';
   if (p) {
@@ -819,20 +822,24 @@ function cntText(p, list) {
       .filter(([, c]) => c).map(([n, c]) => n + ' ' + c).join('、') || '尚無標註');
 }
 
-/* 上一步／下一步的紀錄：一般是標註的 JSON 字串；裁切、旋轉時是 {items, img, url, file, w, h, fileVer}，
-   連照片本身一起記，退回去時照片跟著換回來，更早的紀錄座標也就對得上 */
-const photoState = p => ({ items:JSON.stringify(items), img:p.img, url:p.url, file:p.file, w:p.w, h:p.h, fileVer:p.fileVer });
-const snapshotLike = e => typeof e === 'string' ? JSON.stringify(items) : photoState(photos[cur]);
+/* 上一步／下一步的紀錄：一般是標註的 JSON 字串；裁切、轉向時是 {items, crop, rot}（顯示方式一起記） */
+const viewStep = () => ({ items:JSON.stringify(items), crop:photos[cur].crop, rot:photos[cur].rot });
+const snapshotLike = e => typeof e === 'string' ? JSON.stringify(items) : viewStep();
+
+function pushViewUndo() {
+  undoStack.push(viewStep());
+  if (undoStack.length > 100) undoStack.shift();
+  redoStack = [];
+  photos[cur].dirty = true;
+}
 
 function restoreStep(e) {
   if (typeof e === 'string') items = JSON.parse(e);
   else {
-    const p = photos[cur];
-    Object.assign(p, { img:e.img, url:e.url, file:e.file, w:e.w, h:e.h, fileVer:e.fileVer });
-    img = p.img; main.width = p.w; main.height = p.h; unit = Math.max(p.w, p.h) / 1000;
-    sizeThumb(p);
+    Object.assign(photos[cur], { crop:e.crop, rot:e.rot });
     items = JSON.parse(e.items);
-    layout();
+    view = { z:1, x:0, y:0 };
+    applyView();
   }
   photos[cur].dirty = true;
   sel = -1;
@@ -874,7 +881,9 @@ $('hint').onclick = () => {
 new ResizeObserver(fitHint).observe($('hint'));
 
 function setMode(m) {
+  const cropChanged = (mode === 'crop') !== (m === 'crop');
   mode = m;
+  if (cropChanged && cur >= 0) { view = { z:1, x:0, y:0 }; applyView(); }   // 裁切模式顯示整張原圖，方便重框
   sel = -1;
   ov.style.cursor = { line:'crosshair', text:'text', select:'default', symbol:'crosshair', crop:'crosshair' }[m];
   $('hint').textContent = HINTS[m];
@@ -967,6 +976,7 @@ function openRoleMenu(p, x, y) {
   act('向左轉 90°', () => rotatePhoto(photos.indexOf(p), -1));
   act('向右轉 90°', () => rotatePhoto(photos.indexOf(p), 1));
   act('裁切…', () => { switchTo(photos.indexOf(p)); setMode('crop'); });
+  if (p.crop) act('取消裁切', () => cropPhoto(photos.indexOf(p), null));
   sep('');
   del.textContent = '刪除';
   m.appendChild(del);
@@ -974,59 +984,54 @@ function openRoleMenu(p, x, y) {
   if (num) { num.focus(); num.select(); }   // 右鍵後可以直接打數字按 Enter
 }
 
-function sizeThumb(p) {
-  const k = Math.min(THUMB_W / p.w, THUMB_H / p.h);
-  p.thumb.width = Math.round(p.w * k);
-  p.thumb.height = Math.round(p.h * k);
+// 縮圖比例照輸出的樣子（裁切、轉向後）
+function sizeThumb(p, w = p.w, h = p.h) {
+  const k = Math.min(THUMB_W / w, THUMB_H / h);
+  p.thumb.width = Math.round(w * k);
+  p.thumb.height = Math.round(h * k);
 }
 
-/* ---------- 照片旋轉、裁切 ----------
-   換掉照片本身（存成 JPEG），標註換算到新座標：位置用 mapPt 換、角度加 dA；
-   線寬、字級、符號大小的單位是照片長邊的 1/1000，長邊變了就乘 k，看起來才跟原本一樣大。
-   換之前的照片＋標註整份記進上一步（photoState），可以退回去。 */
-let lastReshape = null;   // 測試用：等照片換好
+/* ---------- 照片的顯示方式：裁切、轉向（只改顯示與輸出，原圖保留） ----------
+   p.crop＝顯示範圍（原圖座標，null＝整張）、p.rot＝順時針轉了幾個 90°。標註一律存原圖座標，
+   畫布（也就是輸出：Word、全部 PNG、複製圖片、縮圖）只畫範圍內、轉好的樣子。裁切模式時顯示整張，方便重框。 */
+let vm = [1, 0, 0, 1, 0, 0], turn = 0;   // 目前照片：原圖座標→畫布座標的矩陣（同 setTransform 的 a～f）、轉了幾度
 
-function reshapePhoto(i, cv, mapPt, dA, keepIt = () => true) {
-  return lastReshape = (async () => {
-    switchTo(i);   // 文字的中心要用這張照片的 unit 算
-    const p = photos[i], k = unit / (Math.max(cv.width, cv.height) / 1000), before = photoState(p);
-    items = items.filter(keepIt).map(it => {
-      if (it.type === 'line') return { ...it, pts:it.pts.map(mapPt), width:it.width * k };
-      if (it.type === 'symbol') {
-        const c = mapPt(it);
-        return { ...it, x:c.x, y:c.y, angle:(it.angle || 0) + dA, size:it.size * k, ...(it.strokeW !== undefined && { strokeW:it.strokeW * k }) };
-      }
-      const c = textCenter(it), nc = mapPt(c);   // 文字以框中心換算，框在畫面上的大小不變
-      return { ...it, x:nc.x - (c.x - it.x), y:nc.y - (c.y - it.y), angle:(it.angle || 0) + dA, size:it.size * k };
-    });
-    undoStack.push(before);   // 舊照片的網址不撤銷：上一步還要用
-    if (undoStack.length > 100) undoStack.shift();
-    redoStack = [];
-    saveCur();
-    const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92));
-    const { im, url } = await loadImage(blob);
-    Object.assign(p, { img:im, url, file:new File([blob], p.name, { type:'image/jpeg' }), w:cv.width, h:cv.height, dirty:true, fileVer:++fileSeq });
-    sizeThumb(p);
-    switchTo(i);
-  })();
+function viewOf(p) {
+  const c = (mode !== 'crop' && p.crop) || { x:0, y:0, w:p.w, h:p.h }, r = p.rot || 0;
+  const m = [[1, 0, 0, 1, -c.x, -c.y], [0, 1, -1, 0, c.h + c.y, -c.x], [-1, 0, 0, -1, c.w + c.x, c.h + c.y], [0, -1, 1, 0, -c.y, c.w + c.x]][r];
+  return { m, w:r % 2 ? c.h : c.w, h:r % 2 ? c.w : c.h, turn:r * Math.PI / 2 };
+}
+
+const toDisp = q => ({ x:vm[0] * q.x + vm[2] * q.y + vm[4], y:vm[1] * q.x + vm[3] * q.y + vm[5] });
+// 反過來：畫布座標→原圖座標（矩陣是 90° 的倍數旋轉加平移，行列式為 1）
+const fromDisp = q => { const x = q.x - vm[4], y = q.y - vm[5]; return { x:vm[3] * x - vm[2] * y, y:-vm[1] * x + vm[0] * y }; };
+
+// 依目前照片的顯示方式設定畫布大小、矩陣與縮圖比例
+function applyView() {
+  const p = photos[cur], v = viewOf(p);
+  vm = v.m; turn = v.turn;
+  main.width = v.w; main.height = v.h;
+  sizeThumb(p, v.w, v.h);
+  layout();
 }
 
 // dir：1＝向右（順時針）、-1＝向左
 function rotatePhoto(i, dir) {
-  const p = photos[i], w = p.w, h = p.h, cv = document.createElement('canvas');
-  cv.width = h; cv.height = w;
-  const g = cv.getContext('2d');
-  g.translate(dir > 0 ? h : 0, dir > 0 ? 0 : w);
-  g.rotate(dir * Math.PI / 2);
-  g.drawImage(p.img, 0, 0, w, h);
-  return reshapePhoto(i, cv, dir > 0 ? q => ({ x:h - q.y, y:q.x }) : q => ({ x:q.y, y:w - q.x }), dir * Math.PI / 2);
+  if (cur !== i) switchTo(i);
+  pushViewUndo();
+  photos[i].rot = ((photos[i].rot || 0) + dir + 4) % 4;
+  view = { z:1, x:0, y:0 };
+  applyView();
+  commit();
 }
 
-// r：要留下的範圍（原圖座標）；完全在框外的標註刪掉
+// r：要顯示的範圍（原圖座標）；null 或整張＝取消裁切。框外的標註保留，只是看不到
 function cropPhoto(i, r) {
-  const p = photos[i], cv = document.createElement('canvas'), sx = p.img.naturalWidth / p.w, sy = p.img.naturalHeight / p.h;
-  cv.width = r.w; cv.height = r.h;
-  cv.getContext('2d').drawImage(p.img, r.x * sx, r.y * sy, r.w * sx, r.h * sy, 0, 0, r.w, r.h);
-  const inside = it => { const b = bbox(it); return b.x2 > r.x && b.x1 < r.x + r.w && b.y2 > r.y && b.y1 < r.y + r.h; };
-  return reshapePhoto(i, cv, q => ({ x:q.x - r.x, y:q.y - r.y }), 0, inside);
+  if (cur !== i) switchTo(i);
+  const p = photos[i];
+  pushViewUndo();
+  p.crop = r && (r.x > 0 || r.y > 0 || r.w < p.w || r.h < p.h) ? r : null;
+  view = { z:1, x:0, y:0 };
+  applyView();
+  commit();
 }

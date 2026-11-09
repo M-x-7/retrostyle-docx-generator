@@ -3,9 +3,10 @@
 /* ---------- 指標事件（滑鼠/觸控共用） ---------- */
 function cssToImg() { return main.width / ov.getBoundingClientRect().width; }
 
+// 螢幕座標→原圖座標（經過裁切、轉向的顯示矩陣換回去）
 function toImg(e) {
   const r = ov.getBoundingClientRect();
-  return { x:(e.clientX - r.left) * main.width / r.width, y:(e.clientY - r.top) * main.height / r.height };
+  return fromDisp({ x:(e.clientX - r.left) * main.width / r.width, y:(e.clientY - r.top) * main.height / r.height });
 }
 
 // 游標是否在選取中符號／文字的把手上：'resize'／'rotate'／null
@@ -60,7 +61,7 @@ ov.addEventListener('pointerdown', e => {
   } else if (mode === 'crop') {
     drag = { id:e.pointerId, kind:'crop', start:p, end:p };
   } else if (mode === 'symbol') {
-    if (symbols[curSym]) drag = { id:e.pointerId, kind:'stamp', start:p, angle:0 };
+    if (symbols[curSym]) drag = { id:e.pointerId, kind:'stamp', start:p, angle:-turn };   // 照片轉過也朝畫面右方
     drawOverlay();
   } else if (mode === 'select') {
     const h = handleAt(p);
@@ -149,11 +150,11 @@ $('sZoom').onclick = resetView;   // 狀態列的縮放比例：點一下回到�
 // 裁切框（原圖座標，夾在照片範圍內、取整數）
 function cropRect(d) {
   const x1 = Math.max(0, Math.min(d.start.x, d.end.x)), y1 = Math.max(0, Math.min(d.start.y, d.end.y));
-  const x2 = Math.min(main.width, Math.max(d.start.x, d.end.x)), y2 = Math.min(main.height, Math.max(d.start.y, d.end.y));
+  const x2 = Math.min(photos[cur].w, Math.max(d.start.x, d.end.x)), y2 = Math.min(photos[cur].h, Math.max(d.start.y, d.end.y));
   return { x:Math.round(x1), y:Math.round(y1), w:Math.round(x2 - x1), h:Math.round(y2 - y1) };
 }
 
-// 放開滑鼠就裁（框太小當成沒框）；裁錯了按上一步
+// 放開滑鼠就套用（框太小當成沒框）；原圖保留，可再框或取消裁切，也能按上一步
 function finishCrop(d, f) {
   const r = cropRect(d);
   drawOverlay();
@@ -224,14 +225,14 @@ function moveItem(it, dx, dy) {
 const CLIP_TAG = 'cable-photo-annotator/item:';
 
 function copySel() {
-  return sel >= 0 ? CLIP_TAG + JSON.stringify({ w:main.width, h:main.height, item:items[sel] }) : null;
+  return sel >= 0 ? CLIP_TAG + JSON.stringify({ w:photos[cur].w, h:photos[cur].h, item:items[sel] }) : null;
 }
 
 // 位置依兩張照片的大小比例換算（線寬、字級、符號大小本來就跟著照片長邊走）；跟既有的完全重疊時往右下錯開
 function pasteItem(text) {
   let d;
   try { d = JSON.parse(text.slice(CLIP_TAG.length)); } catch (err) { return; }
-  const it = d.item, sx = main.width / d.w, sy = main.height / d.h;
+  const it = d.item, sx = photos[cur].w / d.w, sy = photos[cur].h / d.h;
   if (it.type === 'line') it.pts.forEach(q => { q.x *= sx; q.y *= sy; });
   else { it.x *= sx; it.y *= sy; }
   while (items.some(x => JSON.stringify(x) === JSON.stringify(it))) moveItem(it, 20 * unit, 20 * unit);
@@ -256,12 +257,12 @@ ov.addEventListener('dblclick', e => {
 
 // 修改符號內文：輸入框出現在符號下方，Shift+Enter 換行、Enter 確定
 function openLabelEditor(idx) {
-  const it = items[idx], f = cssToImg();
+  const it = items[idx], f = cssToImg(), d = toDisp(it);
   edit = { idx, label:true };
   sel = -1;
   drawOverlay();
   Object.assign(te.style, {
-    display:'block', left:(it.x / f - 80) + 'px', top:((it.y + it.size * unit / 2) / f + 4) + 'px',
+    display:'block', left:(d.x / f - 80) + 'px', top:((d.y + it.size * unit / 2) / f + 4) + 'px',
     fontSize:'16px', color:'#fff', width:'160px', transform:'', textAlign:'center',
   });
   te.value = it.label || '';
@@ -274,18 +275,19 @@ function openLabelEditor(idx) {
 function openEditor(p, idx) {
   const it = idx >= 0 ? items[idx] : null, st = textStyles[curText];   // 新文字用目前的文字樣式
   const size = it ? it.size : st.size;
-  edit = { idx, size,
-    x: it ? it.x : p.x,
-    y: it ? it.y : p.y - size * unit * 0.55,
+  // 新文字：(x, y) 先記「畫面上字的開頭」該在的位置（點的地方往上半個字高），確定時再換成錨點（finishEdit）
+  const s0 = it ? it : (d => fromDisp({ x:d.x, y:d.y - size * unit * 0.55 }))(toDisp(p));
+  edit = { idx, size, x:s0.x, y:s0.y,
     color: it ? it.color : st.color, stroke:st.stroke, box:st.box, align: (it ? it.align : st.align) || 'left' };
   sel = -1;
   render();
   drawOverlay();
-  const f = cssToImg(), a = it && it.angle || 0, at = a ? rotPt(it, textCenter(it), a) : edit;   // 旋轉的文字：輸入框從畫面上的文字開頭跟著轉
+  const f = cssToImg(), a = it && it.angle || 0, at = toDisp(a ? rotPt(it, textCenter(it), a) : edit);   // 輸入框從畫面上的文字開頭開始
+  const sa = it ? a + turn : 0;   // 畫面上字的角度：新文字一律是正的
   Object.assign(te.style, {
     display:'block', left:(at.x / f - 3) + 'px', top:(at.y / f - 1) + 'px',
     fontSize:(size * unit / f) + 'px', color:edit.color,
-    transform:a ? 'rotate(' + a + 'rad)' : '', transformOrigin:'3px 1px', textAlign:edit.align,
+    transform:sa ? 'rotate(' + sa + 'rad)' : '', transformOrigin:'3px 1px', textAlign:edit.align,
   });
   te.value = it ? it.text : '';
   sizeEditor();
@@ -318,7 +320,13 @@ function finishEdit(ok) {
     else items.splice(e.idx, 1);
   } else if (ok && !it && text) {
     pushUndo();
-    items.push({ type:'text', x:e.x, y:e.y, text, color:e.color, size:e.size, stroke:e.stroke, box:e.box, align:e.align });
+    const t = { type:'text', x:e.x, y:e.y, text, color:e.color, size:e.size, stroke:e.stroke, box:e.box, align:e.align };
+    if (turn) {   // 照片轉過：字反向轉回來，並讓畫面上字的開頭留在輸入框的位置（文字以框中心旋轉）
+      t.angle = -turn;
+      const v = textCenter({ ...t, x:0, y:0 }), rv = rotPt(v, { x:0, y:0 }, t.angle);
+      t.x += rv.x - v.x; t.y += rv.y - v.y;
+    }
+    items.push(t);
   }
   commit();
 }

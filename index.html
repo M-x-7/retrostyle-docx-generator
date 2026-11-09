@@ -12,6 +12,9 @@
   <div class="titlebar"><span class="ico"></span><span id="title">復古風DOCX生成工具</span></div>
 
   <div class="toolbar">
+    <fieldset><legend>說明</legend>
+      <button id="bHelp" title="這個網頁的操作方式">使用說明</button>
+    </fieldset>
     <fieldset><legend>檔案</legend>
       <label class="btn" for="file" tabindex="0" title="匯入照片（可多張）">照片</label>
       <input type="file" id="file" accept="image/*" multiple hidden>
@@ -31,9 +34,6 @@
       <button id="bRedo" title="Ctrl+Y 或 Ctrl+Shift+Z">下一步</button>
       <button id="bDel">刪除選取</button>
       <button id="bClear">全部清除</button>
-    </fieldset>
-    <fieldset><legend>說明</legend>
-      <button id="bHelp" title="這個網頁的操作方式">使用說明</button>
     </fieldset>
     <fieldset><legend>線型（快捷鍵）</legend>
       <span id="presetBar" class="group"></span>
@@ -120,7 +120,7 @@
         <tr><td>縮放、旋轉</td><td>選取文字或符號後，拖右下角方塊縮放、拖外側圓點旋轉</td></tr>
         <tr><td>換樣式</td><td>選取後用工具列的顏色、樣式區調整；或點工具列的線型、文字樣式按鈕整組換掉</td></tr>
         <tr><td>複製</td><td>Ctrl+C 複製、Ctrl+V 貼上（可以貼到別張照片）；Ctrl+D 原地複製一份</td></tr>
-        <tr><td>上一步、下一步</td><td>Ctrl+Z；Ctrl+Y 或 Ctrl+Shift+Z（裁切、旋轉照片也能退回）</td></tr>
+        <tr><td>上一步、下一步</td><td>Ctrl+Z；Ctrl+Y 或 Ctrl+Shift+Z（裁切、轉向也能退回）</td></tr>
       </table>
       <div class="sect">檢視照片</div>
       <table>
@@ -131,7 +131,8 @@
       <table>
         <tr><td>開啟、選取</td><td>雙擊打開編輯；單擊選取、Ctrl+單擊多選</td></tr>
         <tr><td>排序</td><td>直接拖曳；或右鍵改編號</td></tr>
-        <tr><td>右鍵選單</td><td>設定用途（現場照片或範本裡的圖片位置）、改編號、向左／向右轉 90°、裁切…、刪除</td></tr>
+        <tr><td>右鍵選單</td><td>設定用途（現場照片或範本裡的圖片位置）、改編號、向左／向右轉 90°、裁切…、取消裁切、刪除</td></tr>
+        <tr><td>裁切、轉向</td><td>只改顯示與輸出（Word、PNG）的範圍和方向，原圖與標註都保留；隨時可以重新框、取消裁切或按上一步</td></tr>
       </table>
       <div class="sect">匯出</div>
       <table>
@@ -240,9 +241,9 @@
 <div id="menu"></div>
 
 <!-- 依序載入，順序不能換：頂層程式碼只能呼叫「已經載入」的檔案裡的函式 -->
-<script src="js/core.js?v=1f95dbcc"></script>
-<script src="js/edit.js?v=c89f8e80"></script>
-<script src="js/word.js?v=07710901"></script>
+<script src="js/core.js?v=022e88b1"></script>
+<script src="js/edit.js?v=917b7ad4"></script>
+<script src="js/word.js?v=edad6367"></script>
 <script src="js/fields.js?v=f0a660c0"></script>
 <script src="js/main.js?v=b8658341"></script>
 </body>
