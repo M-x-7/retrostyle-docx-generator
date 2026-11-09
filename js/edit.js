@@ -99,9 +99,7 @@ ov.addEventListener('pointermove', e => {
       pushUndo();
       drag.moved = true;
     }
-    const dx = p.x - drag.last.x, dy = p.y - drag.last.y, it = items[sel];
-    if (it.type === 'line') it.pts.forEach(q => { q.x += dx; q.y += dy; });
-    else { it.x += dx; it.y += dy; }
+    moveItem(items[sel], p.x - drag.last.x, p.y - drag.last.y);
     drag.last = p;
     commit();
   }
@@ -168,6 +166,39 @@ function placeSymbol(p, angle) {
 
 function textAt(p) {
   openEditor(p, hitTest(p, 'text'));
+}
+
+// 標註平移 dx, dy（原圖座標）
+function moveItem(it, dx, dy) {
+  if (it.type === 'line') it.pts.forEach(q => { q.x += dx; q.y += dy; });
+  else { it.x += dx; it.y += dy; }
+}
+
+/* ---------- 複製標註：Ctrl+C／Ctrl+V（可貼到別張照片）、Ctrl+D 原地複製一份 ----------
+   寫進系統剪貼簿的是一段帶開頭標記的文字，貼上時認得出來；剪貼簿裡是圖片時 Ctrl+V 照舊是新增照片 */
+const CLIP_TAG = 'cable-photo-annotator/item:';
+
+function copySel() {
+  return sel >= 0 ? CLIP_TAG + JSON.stringify({ w:main.width, h:main.height, item:items[sel] }) : null;
+}
+
+// 位置依兩張照片的大小比例換算（線寬、字級、符號大小本來就跟著照片長邊走）；跟既有的完全重疊時往右下錯開
+function pasteItem(text) {
+  let d;
+  try { d = JSON.parse(text.slice(CLIP_TAG.length)); } catch (err) { return; }
+  const it = d.item, sx = main.width / d.w, sy = main.height / d.h;
+  if (it.type === 'line') it.pts.forEach(q => { q.x *= sx; q.y *= sy; });
+  else { it.x *= sx; it.y *= sy; }
+  while (items.some(x => JSON.stringify(x) === JSON.stringify(it))) moveItem(it, 20 * unit, 20 * unit);
+  pushUndo();
+  items.push(it);
+  sel = items.length - 1;
+  commit();
+}
+
+function duplicateSel() {
+  const t = copySel();
+  if (t) pasteItem(t);
 }
 
 ov.addEventListener('dblclick', e => {

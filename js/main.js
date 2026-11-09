@@ -19,6 +19,7 @@ document.addEventListener('keydown', e => {
   if (ctrl && k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
   else if (ctrl && (k === 'y' || k === 'z')) { e.preventDefault(); redo(); }   // Ctrl+Y 或 Ctrl+Shift+Z
   else if (ctrl && k === 's') { e.preventDefault(); saveProject(); }   // 沒有照片也能存（只有修繕單欄位）
+  else if (ctrl && k === 'd') { e.preventDefault(); duplicateSel(); }   // 原地複製一份選取的標註
   else if (ctrl || e.altKey) return;
   else if (k === ' ') e.preventDefault();   // 空白鍵沒有功能（以前能畫線，已拿掉）；擋掉以免捲動頁面或觸發剛點過的按鈕
   else if (presetFor(k) || symbolFor(k) >= 0 || textFor(k) >= 0) {
@@ -54,11 +55,25 @@ document.addEventListener('keyup', e => {
 });
 window.addEventListener('blur', releaseHeld);   // 切到其他視窗時可能收不到 keyup
 
-// Ctrl+V 貼上圖片（截圖、從其他程式複製的圖）＝新增一張照片；輸入框裡貼上照常是貼文字
+// Ctrl+C 複製選取的標註（寫進系統剪貼簿，換照片後也能貼）
+document.addEventListener('copy', e => {
+  if (document.querySelector('.modal.show') || (e.target instanceof Element && e.target.matches(TYPING))) return;
+  const t = copySel();
+  if (!t) return;
+  e.preventDefault();
+  e.clipboardData.setData('text/plain', t);
+  toast('已複製標註，在這張或別張照片按 Ctrl+V 貼上');
+});
+
+// Ctrl+V 貼上圖片（截圖、從其他程式複製的圖）＝新增一張照片；複製的標註＝貼到目前照片；輸入框裡貼上照常是貼文字
 document.addEventListener('paste', e => {
   if (document.querySelector('.modal.show') || (e.target instanceof Element && e.target.matches(TYPING))) return;
   const list = [...e.clipboardData.files].filter(f => f.type.startsWith('image/'));
-  if (!list.length) return;
+  if (!list.length) {
+    const t = e.clipboardData.getData('text/plain');
+    if (img && t.startsWith(CLIP_TAG)) { e.preventDefault(); pasteItem(t); }
+    return;
+  }
   e.preventDefault();
   const d = new Date(), stamp = pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds());
   addFiles(list.map((f, i) => new File([f], '貼上_' + stamp + (list.length > 1 ? '_' + (i + 1) : '') + '.' + f.type.slice(6), { type:f.type })));
