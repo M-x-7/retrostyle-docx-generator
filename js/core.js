@@ -119,7 +119,8 @@ let unit = 1;              // 線寬/字級的單位：原圖長邊的 1/1000，
 let items = [];            // {type:'line', pts:[{x,y}], color, width, dash, arrow} | {type:'text', x, y, text（可多行）, color, size, stroke, box, align?, angle?}
                            // | {type:'symbol', x, y, angle, shape, fill, color, size, label}
 let undoStack = [];
-let redoStack = [];         // 復原掉的步驟，Ctrl+Y／Ctrl+Shift+Z 重做；有新的修改就清掉
+let redoStack = [];         // 上一步退掉的步驟，Ctrl+Y／Ctrl+Shift+Z 下一步；有新的修改就清掉
+let fileSeq = 0;           // 照片檔的版本號（全域遞增，每個不同的照片檔都不一樣；自動暫存靠它判斷要不要重存）
 let mode = 'select';
 let sel = -1;
 let drag = null;
@@ -183,7 +184,7 @@ function addPhoto(name, im, url, file) {
   const k = Math.min(1, Math.sqrt(MAX_PIXELS / (w * h)));
   if (k < 1) toast(name + ' 過大，已縮小至 ' + Math.round(w * k) + '×' + Math.round(h * k));
   const p = { name, file, url, img:im, w:Math.round(w * k), h:Math.round(h * k), role:SITE_ROLE, items:[], undo:[], dirty:false,
-    id:Date.now().toString(36) + Math.random().toString(36).slice(2, 8), fileVer:1 };   // id、fileVer：自動暫存用（照片檔換了才重存）
+    id:Date.now().toString(36) + Math.random().toString(36).slice(2, 8), fileVer:++fileSeq };   // id、fileVer：自動暫存用（照片檔換了才重存）
 
   p.thumb = document.createElement('canvas');
   sizeThumb(p);
@@ -817,21 +818,37 @@ function cntText(p, list) {
       .filter(([, c]) => c).map(([n, c]) => n + ' ' + c).join('、') || '尚無標註');
 }
 
-function undo() {
-  if (!undoStack.length) return;
-  redoStack.push(JSON.stringify(items));
-  items = JSON.parse(undoStack.pop());
+/* 上一步／下一步的紀錄：一般是標註的 JSON 字串；裁切、旋轉時是 {items, img, url, file, w, h, fileVer}，
+   連照片本身一起記，退回去時照片跟著換回來，更早的紀錄座標也就對得上 */
+const photoState = p => ({ items:JSON.stringify(items), img:p.img, url:p.url, file:p.file, w:p.w, h:p.h, fileVer:p.fileVer });
+const snapshotLike = e => typeof e === 'string' ? JSON.stringify(items) : photoState(photos[cur]);
+
+function restoreStep(e) {
+  if (typeof e === 'string') items = JSON.parse(e);
+  else {
+    const p = photos[cur];
+    Object.assign(p, { img:e.img, url:e.url, file:e.file, w:e.w, h:e.h, fileVer:e.fileVer });
+    img = p.img; main.width = p.w; main.height = p.h; unit = Math.max(p.w, p.h) / 1000;
+    sizeThumb(p);
+    items = JSON.parse(e.items);
+    layout();
+  }
+  photos[cur].dirty = true;
   sel = -1;
   commit();
 }
 
+function undo() {
+  if (!undoStack.length) return;
+  const e = undoStack.pop();
+  redoStack.push(snapshotLike(e));
+  restoreStep(e);
+}
 function redo() {
   if (!redoStack.length) return;
-  undoStack.push(JSON.stringify(items));
-  items = JSON.parse(redoStack.pop());
-  photos[cur].dirty = true;
-  sel = -1;
-  commit();
+  const e = redoStack.pop();
+  undoStack.push(snapshotLike(e));
+  restoreStep(e);
 }
 
 function deleteSel() {
@@ -951,13 +968,13 @@ function sizeThumb(p) {
 /* ---------- 照片旋轉、裁切 ----------
    換掉照片本身（存成 JPEG），標註換算到新座標：位置用 mapPt 換、角度加 dA；
    線寬、字級、符號大小的單位是照片長邊的 1/1000，長邊變了就乘 k，看起來才跟原本一樣大。
-   換算前的復原紀錄座標對不上了，這張照片的復原、重做一併清掉。 */
+   換之前的照片＋標註整份記進上一步（photoState），可以退回去。 */
 let lastReshape = null;   // 測試用：等照片換好
 
 function reshapePhoto(i, cv, mapPt, dA, keepIt = () => true) {
   return lastReshape = (async () => {
     switchTo(i);   // 文字的中心要用這張照片的 unit 算
-    const p = photos[i], k = unit / (Math.max(cv.width, cv.height) / 1000);
+    const p = photos[i], k = unit / (Math.max(cv.width, cv.height) / 1000), before = photoState(p);
     items = items.filter(keepIt).map(it => {
       if (it.type === 'line') return { ...it, pts:it.pts.map(mapPt), width:it.width * k };
       if (it.type === 'symbol') {
@@ -967,12 +984,13 @@ function reshapePhoto(i, cv, mapPt, dA, keepIt = () => true) {
       const c = textCenter(it), nc = mapPt(c);   // 文字以框中心換算，框在畫面上的大小不變
       return { ...it, x:nc.x - (c.x - it.x), y:nc.y - (c.y - it.y), angle:(it.angle || 0) + dA, size:it.size * k };
     });
-    undoStack = []; redoStack = [];
+    undoStack.push(before);   // 舊照片的網址不撤銷：上一步還要用
+    if (undoStack.length > 100) undoStack.shift();
+    redoStack = [];
     saveCur();
     const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92));
     const { im, url } = await loadImage(blob);
-    URL.revokeObjectURL(p.url);
-    Object.assign(p, { img:im, url, file:new File([blob], p.name, { type:'image/jpeg' }), w:cv.width, h:cv.height, dirty:true, fileVer:p.fileVer + 1 });
+    Object.assign(p, { img:im, url, file:new File([blob], p.name, { type:'image/jpeg' }), w:cv.width, h:cv.height, dirty:true, fileVer:++fileSeq });
     sizeThumb(p);
     switchTo(i);
   })();

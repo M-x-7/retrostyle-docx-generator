@@ -5,7 +5,7 @@ $('bUndo').onclick = undo;
 $('bRedo').onclick = redo;
 $('bDel').onclick = deleteSel;
 $('bClear').onclick = () => {
-  if (!items.length || !confirm('確定清除這張照片的所有線條與文字？（可用復原找回）')) return;
+  if (!items.length || !confirm('確定清除這張照片的所有線條與文字？（可按上一步找回）')) return;
   pushUndo();
   items = []; sel = -1;
   commit();

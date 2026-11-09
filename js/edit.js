@@ -153,12 +153,12 @@ function cropRect(d) {
   return { x:Math.round(x1), y:Math.round(y1), w:Math.round(x2 - x1), h:Math.round(y2 - y1) };
 }
 
-// 放開滑鼠：框太小當成沒框；確認後才裁（裁了不能復原）
+// 放開滑鼠就裁（框太小當成沒框）；裁錯了按上一步
 function finishCrop(d, f) {
   const r = cropRect(d);
   drawOverlay();
   if (mode !== 'crop' || r.w < 10 * f || r.h < 10 * f) return;   // 拖到一半按了 Esc 就不裁
-  if (confirm('裁切成框選的範圍（' + r.w + '×' + r.h + '）？\n框外的標註會刪掉，這張照片的復原紀錄也會清掉。')) cropPhoto(cur, r);
+  cropPhoto(cur, r);
   setMode('select');
 }
 
