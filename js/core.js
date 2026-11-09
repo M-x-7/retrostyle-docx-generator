@@ -129,7 +129,7 @@ let heldKey = null;        // 按住線型鍵畫線、符號鍵放符號、文�
 let poly = null;           // 按住畫線鍵期間點的、拖的累積成的折線 {pts, hover}，放開按鍵才成為一條線
 
 const HINTS = {
-  select: '選取：點項目可拖曳、改顏色、Delete 刪除；雙擊文字或符號可修改；選取後拖右下角方塊縮放、拖外側圓點旋轉　｜按住線型鍵畫線、按住符號鍵放符號、按住文字鍵放文字；Ctrl+C／Ctrl+V 複製貼上標註、Ctrl+D 複製一份；Ctrl+V 也能貼上圖片',
+  select: '選取：點項目可拖曳、改顏色、Delete 刪除；雙擊文字或符號可修改；選取後拖右下角方塊縮放、拖外側圓點旋轉　｜按住線型鍵畫線、按住符號鍵放符號、按住文字鍵放文字；Ctrl+C／Ctrl+V 複製貼上標註、Ctrl+D 複製一份；Ctrl+V 也能貼上圖片；滾輪縮放、中鍵或右鍵拖曳平移',
   line: '畫線：點一下放點、拖曳手繪（自動拉直），按住期間全部接成同一條線，放開按鍵完成；Esc 取消',
   symbol: '符號：點一下放置；按住滑鼠拖曳可決定方向（三角形指向拖曳方向）；放開按鍵回到選取',
   text: '文字：點一下照片放文字，放開按鍵再打字，Shift+Enter 換行、Enter 確定、Esc 取消；點既有文字可修改（清空即刪除）',
@@ -287,6 +287,7 @@ function switchTo(i) {
   main.width = p.w; main.height = p.h;
   unit = Math.max(p.w, p.h) / 1000;
   sel = -1; drag = null;
+  view = { z:1, x:0, y:0 };   // 換照片回到整張
   photos.forEach((q, j) => q.el.classList.toggle('on', j === i));
   p.el.scrollIntoView({ block:'nearest', inline:'nearest' });
   layout();
@@ -327,17 +328,52 @@ function closeAll() {
   clearCurrent();
 }
 
+/* 照片縮放：view.z＝倍率（1＝整張塞進畫面），view.x/y＝從置中位置平移多少（CSS px）。
+   滾輪以游標為中心縮放、中鍵或右鍵拖曳平移（edit.js），切換照片回到整張 */
+let view = { z:1, x:0, y:0 };
+const ZOOM_MAX = 10;
+const OV_MAX = 4096;   // 疊加層畫布最長邊上限：放很大時改用較低解析度，免得吃光記憶體
+
 function layout() {
   if (!img) return;
   const r = stage.getBoundingClientRect(), pad = 10;
-  const s = Math.min((r.width - pad * 2) / main.width, (r.height - pad * 2) / main.height);
+  const s = Math.min((r.width - pad * 2) / main.width, (r.height - pad * 2) / main.height) * view.z;
   const cw = main.width * s, ch = main.height * s;
+  // 照片比畫面大時最多移到邊緣，不會整張跑出畫面；比畫面小時置中
+  const mx = Math.max(0, (cw - r.width) / 2), my = Math.max(0, (ch - r.height) / 2);
+  view.x = Math.max(-mx, Math.min(mx, view.x));
+  view.y = Math.max(-my, Math.min(my, view.y));
   wrap.style.width = cw + 'px';
   wrap.style.height = ch + 'px';
-  const dpr = window.devicePixelRatio || 1;
-  ov.width = Math.round(cw * dpr);
-  ov.height = Math.round(ch * dpr);
+  wrap.style.transform = 'translate(calc(-50% + ' + view.x + 'px), calc(-50% + ' + view.y + 'px))';
+  const q = Math.min(window.devicePixelRatio || 1, OV_MAX / Math.max(cw, ch));
+  ov.width = Math.round(cw * q);
+  ov.height = Math.round(ch * q);
+  $('sZoom').textContent = Math.round(view.z * 100) + '%';
   drawOverlay();
+}
+
+// 以螢幕上的 (cx, cy) 為中心縮放到 z 倍：游標底下那一點縮放後還在游標底下
+function zoomAt(cx, cy, z) {
+  z = Math.max(1, Math.min(ZOOM_MAX, z));
+  if (!img || z === view.z) return;
+  const r = stage.getBoundingClientRect(), f = z / view.z;
+  const sx = r.left + r.width / 2, sy = r.top + r.height / 2;   // 照片置中時的中心
+  const wx = sx + view.x, wy = sy + view.y;                      // 目前照片中心
+  view.x = cx - (cx - wx) * f - sx;
+  view.y = cy - (cy - wy) * f - sy;
+  view.z = z;
+  layout();
+}
+
+function resetView() {
+  view = { z:1, x:0, y:0 };
+  layout();
+}
+
+// 一個螢幕像素等於多少原圖單位：選取框、把手、點選範圍用它，大小才不受縮放與疊加層解析度影響
+function devPx() {
+  return cssToImg() / (window.devicePixelRatio || 1);
 }
 new ResizeObserver(layout).observe(stage);
 
@@ -535,7 +571,7 @@ function drawOverlay() {
   octx.setTransform(1, 0, 0, 1, 0, 0);
   octx.clearRect(0, 0, ov.width, ov.height);
   if (!img) return;
-  const k = ov.width / main.width;
+  const k = ov.width / main.width, u = devPx();   // k：疊加層畫布的比例；u：一個螢幕像素＝多少原圖單位（選取框、把手的大小）
   octx.setTransform(k, 0, 0, k, 0, 0);
   const draft = pts => {
     octx.strokeStyle = settings.color; octx.globalAlpha = 0.6;
@@ -555,39 +591,39 @@ function drawOverlay() {
     octx.globalAlpha = 1;
   }
   if (sel >= 0) {
-    const it = items[sel], b = bbox(it), pad = 6 / k;
+    const it = items[sel], b = bbox(it), pad = 6 * u;
     octx.save();
     if (it.type === 'text' && it.angle) { const c = textCenter(it); octx.translate(c.x, c.y); octx.rotate(it.angle); octx.translate(-c.x, -c.y); }
-    octx.strokeStyle = '#ffb000'; octx.lineWidth = 2 / k;
-    octx.setLineDash([4 / k, 4 / k]);
+    octx.strokeStyle = '#ffb000'; octx.lineWidth = 2 * u;
+    octx.setLineDash([4 * u, 4 * u]);
     octx.strokeRect(b.x1 - pad, b.y1 - pad, b.x2 - b.x1 + pad * 2, b.y2 - b.y1 + pad * 2);
     octx.restore();
     if (it.type !== 'line') {   // 縮放（右下角方塊）與旋轉（朝向那一側外面的圓點）把手
       const h = itemHandles(it);
-      octx.fillStyle = '#ffb000'; octx.strokeStyle = '#000'; octx.lineWidth = 1 / k;
+      octx.fillStyle = '#ffb000'; octx.strokeStyle = '#000'; octx.lineWidth = 1 * u;
       octx.save(); octx.translate(h.resize.x, h.resize.y); octx.rotate(h.angle);   // 方塊跟著文字轉
-      octx.fillRect(-5 / k, -5 / k, 10 / k, 10 / k);
-      octx.strokeRect(-5 / k, -5 / k, 10 / k, 10 / k);
+      octx.fillRect(-5 * u, -5 * u, 10 * u, 10 * u);
+      octx.strokeRect(-5 * u, -5 * u, 10 * u, 10 * u);
       octx.restore();
-      octx.strokeStyle = '#ffb000'; octx.lineWidth = 2 / k;
+      octx.strokeStyle = '#ffb000'; octx.lineWidth = 2 * u;
       octx.beginPath(); octx.moveTo(h.edge.x, h.edge.y); octx.lineTo(h.rotate.x, h.rotate.y); octx.stroke();
-      octx.beginPath(); octx.arc(h.rotate.x, h.rotate.y, 6 / k, 0, Math.PI * 2); octx.fill();
-      octx.strokeStyle = '#000'; octx.lineWidth = 1 / k; octx.stroke();
+      octx.beginPath(); octx.arc(h.rotate.x, h.rotate.y, 6 * u, 0, Math.PI * 2); octx.fill();
+      octx.strokeStyle = '#000'; octx.lineWidth = 1 * u; octx.stroke();
     }
   }
 }
 
 // 選取中符號／文字的把手位置（原圖座標）：縮放在選取框右下角，旋轉在朝向那一側的外面；edge 是連到旋轉把手的線的起點
 function itemHandles(it) {
-  const k = ov.width / main.width, a = it.angle || 0;
+  const u = devPx(), a = it.angle || 0;
   if (it.type === 'symbol') {
-    const r = symbolR(it), d = r + 28 / k;
-    return { angle:0, resize:{ x:it.x + r + 6 / k, y:it.y + r + 6 / k },
+    const r = symbolR(it), d = r + 28 * u;
+    return { angle:0, resize:{ x:it.x + r + 6 * u, y:it.y + r + 6 * u },
       edge:{ x:it.x + Math.cos(a) * r, y:it.y + Math.sin(a) * r }, rotate:{ x:it.x + Math.cos(a) * d, y:it.y + Math.sin(a) * d } };
   }
   const b = textBox(it), c = textCenter(it), hw = (b.x2 - b.x1) / 2, hh = (b.y2 - b.y1) / 2;
   const at = (dx, dy) => rotPt({ x:c.x + dx, y:c.y + dy }, c, a);
-  return { angle:a, resize:at(hw + 6 / k, hh + 6 / k), edge:at(hw, 0), rotate:at(hw + 28 / k, 0) };
+  return { angle:a, resize:at(hw + 6 * u, hh + 6 * u), edge:at(hw, 0), rotate:at(hw + 28 * u, 0) };
 }
 
 // 文字框（未旋轉時的範圍）；旋轉的文字以框中心為軸
@@ -753,6 +789,7 @@ function commit() {
   $('title').textContent = p ? '復古風DOCX生成工具 - ' + p.name : '復古風DOCX生成工具';
   $('sPhoto').textContent = p ? '照片 ' + (cur + 1) + ' / ' + photos.length : '無照片';
   $('sSize').textContent = p ? p.w + '×' + p.h : '';
+  if (!p) $('sZoom').textContent = '';
   $('sCount').textContent = p ? counts.map(([n, c]) => n + ' ' + c).join('　') : '';
   if (p) {
     p.thumb.getContext('2d').drawImage(main, 0, 0, p.thumb.width, p.thumb.height);

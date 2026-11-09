@@ -33,8 +33,17 @@ function hitTest(p, onlyType) {
   return -1;
 }
 
+let pan = null;   // 中鍵或右鍵拖曳平移中：{id, x, y}
+
 ov.addEventListener('pointerdown', e => {
   if (!img) return;
+  if (e.button === 1 || e.button === 2) {   // 中鍵、右鍵：拖曳平移照片（左鍵照舊選取、畫線、放符號）
+    e.preventDefault();
+    ov.setPointerCapture(e.pointerId);
+    pan = { id:e.pointerId, x:e.clientX, y:e.clientY };
+    ov.style.cursor = 'grabbing';
+    return;
+  }
   if (edit) {   // 輸入中點到別處：先確定文字，這一下不做其他動作
     finishEdit(true);
     return;
@@ -69,6 +78,11 @@ ov.addEventListener('pointerdown', e => {
 });
 
 ov.addEventListener('pointermove', e => {
+  if (pan && e.pointerId === pan.id) {
+    view.x += e.clientX - pan.x; view.y += e.clientY - pan.y;
+    pan.x = e.clientX; pan.y = e.clientY;
+    return layout();
+  }
   if (poly && !drag) { poly.hover = snapFrom(poly.pts[poly.pts.length - 1], toImg(e)); drawOverlay(); return; }
   if (!drag && mode === 'select') ov.style.cursor = { resize:'nwse-resize', rotate:'grab' }[handleAt(toImg(e))] || 'default';
   if (!drag || e.pointerId !== drag.id) return;
@@ -106,6 +120,7 @@ ov.addEventListener('pointermove', e => {
 });
 
 ov.addEventListener('pointerup', e => {
+  if (pan && e.pointerId === pan.id) { pan = null; ov.style.cursor = ''; return; }
   if (!drag || e.pointerId !== drag.id) return;
   const d = drag, p = toImg(e), f = cssToImg();
   drag = null;
@@ -115,7 +130,15 @@ ov.addEventListener('pointerup', e => {
   drawOverlay();
 });
 
-ov.addEventListener('pointercancel', () => { drag = null; drawOverlay(); });
+ov.addEventListener('pointercancel', () => { drag = null; pan = null; ov.style.cursor = ''; drawOverlay(); });
+ov.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });   // 中鍵不要啟動瀏覽器的自動捲動
+ov.addEventListener('contextmenu', e => e.preventDefault());   // 右鍵是平移，不跳瀏覽器選單
+stage.addEventListener('wheel', e => {
+  if (!img) return;
+  e.preventDefault();
+  zoomAt(e.clientX, e.clientY, view.z * (e.deltaY < 0 ? 1.25 : 0.8));
+}, { passive:false });
+$('sZoom').onclick = resetView;   // 狀態列的縮放比例：點一下回到整張
 
 function finishStroke(pts, f) {
   let len = 0;

@@ -20,6 +20,7 @@ document.addEventListener('keydown', e => {
   else if (ctrl && (k === 'y' || k === 'z')) { e.preventDefault(); redo(); }   // Ctrl+Y 或 Ctrl+Shift+Z
   else if (ctrl && k === 's') { e.preventDefault(); saveProject(); }   // 沒有照片也能存（只有修繕單欄位）
   else if (ctrl && k === 'd') { e.preventDefault(); duplicateSel(); }   // 原地複製一份選取的標註
+  else if (ctrl && k === '0') { e.preventDefault(); resetView(); }   // 照片回到整張（瀏覽器自己的縮放不動）
   else if (ctrl || e.altKey) return;
   else if (k === ' ') e.preventDefault();   // 空白鍵沒有功能（以前能畫線，已拿掉）；擋掉以免捲動頁面或觸發剛點過的按鈕
   else if (presetFor(k) || symbolFor(k) >= 0 || textFor(k) >= 0) {
