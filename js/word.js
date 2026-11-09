@@ -3,6 +3,8 @@
 /* ---------- 按鈕 ---------- */
 $('bUndo').onclick = undo;
 $('bRedo').onclick = redo;
+$('bHelp').onclick = () => showModal('dlgHelp', true);
+$('hClose').onclick = () => showModal('dlgHelp', false);
 $('bDel').onclick = deleteSel;
 $('bClear').onclick = () => {
   if (!items.length || !confirm('確定清除這張照片的所有線條與文字？（可按上一步找回）')) return;

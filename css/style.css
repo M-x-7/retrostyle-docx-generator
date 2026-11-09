@@ -167,6 +167,13 @@ textarea { resize:vertical; line-height:1.5; }
 .statusbar span:empty { display:none; }
 #sZoom { cursor:pointer; }   /* 點一下回到整張 */
 #hint { flex:1; }
+#hint.more { cursor:pointer; }
+#hint.open { white-space:normal; }   /* 點一下展開成多行 */
+/* 使用說明視窗 */
+.help ol { margin:0; padding-left:1.6em; }
+.help table { border-collapse:collapse; width:100%; }
+.help td { padding:3px 8px; border-bottom:1px dotted var(--lo); vertical-align:top; }
+.help td:first-child { white-space:nowrap; color:var(--accent); width:8em; }
 
 @media (max-width:700px) {
   body { padding:0; }

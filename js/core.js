@@ -129,12 +129,13 @@ let edit = null;           // 網頁內文字輸入框的狀態 {idx, x, y, size
 let heldKey = null;        // 按住線型鍵畫線、符號鍵放符號、文字鍵放文字，放開一律回到選取
 let poly = null;           // 按住畫線鍵期間點的、拖的累積成的折線 {pts, hover}，放開按鍵才成為一條線
 
+// 狀態列只放每個模式最常用的操作（使用者要求精簡）；完整操作在工具列的「使用說明」
 const HINTS = {
-  select: '選取：點項目可拖曳、改顏色、Delete 刪除；雙擊文字或符號可修改；選取後拖右下角方塊縮放、拖外側圓點旋轉　｜按住線型鍵畫線、按住符號鍵放符號、按住文字鍵放文字；Ctrl+C／Ctrl+V 複製貼上標註、Ctrl+D 複製一份；Ctrl+V 也能貼上圖片；滾輪縮放、中鍵或右鍵拖曳平移',
-  line: '畫線：點一下放點、拖曳手繪（自動拉直），按住期間全部接成同一條線，放開按鍵完成；Esc 取消',
-  symbol: '符號：點一下放置；按住滑鼠拖曳可決定方向（三角形指向拖曳方向）；放開按鍵回到選取',
-  text: '文字：點一下照片放文字，放開按鍵再打字，Shift+Enter 換行、Enter 確定、Esc 取消；點既有文字可修改（清空即刪除）',
-  crop: '裁切：在照片上拖曳框出要留下的範圍，放開滑鼠後確認；Esc 取消',
+  select: '選取：點選後拖曳移動、Delete 刪除、雙擊修改｜按住線型／符號／文字鍵標註｜Ctrl+Z／Ctrl+Y 上一步／下一步｜滾輪縮放、右鍵拖曳平移',
+  line: '畫線：點一下放點、拖曳手繪，放開按鍵完成；Esc 取消',
+  symbol: '符號：點一下放置，按住滑鼠拖曳決定方向；放開按鍵回到選取',
+  text: '文字：點一下放文字，放開按鍵再打字；Shift+Enter 換行、Enter 確定、Esc 取消',
+  crop: '裁切：拖曳框出要留下的範圍，放開就裁（可按上一步退回）；Esc 取消',
 };
 
 /* ---------- 匯入照片（可多張） ---------- */
@@ -859,11 +860,25 @@ function deleteSel() {
   commit();
 }
 
+// 狀態列提示被截斷時可以點一下展開成多行（.more：有被截斷或正展開著；.open：展開中）
+function fitHint() {
+  const h = $('hint'), open = h.classList.contains('open');
+  h.classList.toggle('more', open || h.scrollWidth > h.clientWidth + 1);
+  h.title = !h.classList.contains('more') ? '' : open ? '點一下收合' : '點一下展開完整說明';
+}
+$('hint').onclick = () => {
+  if (!$('hint').classList.contains('more')) return;
+  $('hint').classList.toggle('open');
+  fitHint();
+};
+new ResizeObserver(fitHint).observe($('hint'));
+
 function setMode(m) {
   mode = m;
   sel = -1;
   ov.style.cursor = { line:'crosshair', text:'text', select:'default', symbol:'crosshair', crop:'crosshair' }[m];
   $('hint').textContent = HINTS[m];
+  fitHint();
   renderSymbolBar();
   renderTextBar();
   renderPresetBar();

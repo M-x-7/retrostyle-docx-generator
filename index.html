@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>復古風DOCX生成工具</title>
 <link rel="icon" href="favicon.ico">
-<link rel="stylesheet" href="css/style.css?v=1944d468">
+<link rel="stylesheet" href="css/style.css?v=0d7b04bd">
 </head>
 <body>
 <div class="window">
@@ -31,6 +31,9 @@
       <button id="bRedo" title="Ctrl+Y 或 Ctrl+Shift+Z">下一步</button>
       <button id="bDel">刪除選取</button>
       <button id="bClear">全部清除</button>
+    </fieldset>
+    <fieldset><legend>說明</legend>
+      <button id="bHelp" title="這個網頁的操作方式">使用說明</button>
     </fieldset>
     <fieldset><legend>線型（快捷鍵）</legend>
       <span id="presetBar" class="group"></span>
@@ -89,6 +92,66 @@
 
   <div class="statusbar">
     <span id="hint"></span><span id="sPhoto"></span><span id="sSize"></span><span id="sZoom" title="照片縮放比例：滾輪縮放、中鍵或右鍵拖曳平移；點這裡或按 Ctrl+0 回到整張"></span><span id="sCount"></span>
+  </div>
+</div>
+
+<div class="modal" id="dlgHelp">
+  <div class="window dialog wide">
+    <div class="titlebar"><span class="ico"></span>使用說明</div>
+    <div class="body form help">
+      <div class="sect">基本流程</div>
+      <ol>
+        <li>按「照片」匯入現場照片（可多選、拖曳進視窗、Ctrl+V 貼上截圖）；不放照片也可以直接填文件。</li>
+        <li>按住快捷鍵在照片上標註；在照片清單按右鍵設定照片的用途。</li>
+        <li>按「匯出 Word…」選擇範本、填欄位，按「產生 .docx」。</li>
+        <li>按「儲存」把照片、標註、欄位存成專案檔，之後用「開啟」繼續編輯。</li>
+      </ol>
+      <div class="sect">標註（按住快捷鍵，放開就回到選取）</div>
+      <table>
+        <tr><td>畫線</td><td>按住線型的快捷鍵，點照片放點、拖曳手繪（自動拉直）；按住期間全部接成一條線，放開按鍵完成</td></tr>
+        <tr><td>放文字</td><td>按住文字樣式的快捷鍵點照片，放開按鍵再打字；Shift+Enter 換行、Enter 確定</td></tr>
+        <tr><td>放符號</td><td>按住符號的快捷鍵點照片；按住滑鼠拖曳可決定方向</td></tr>
+        <tr><td>快捷鍵</td><td>工具列的線型、文字、符號按鈕旁邊括號裡的字母或數字；要新增或修改按「線型/文字/符號設定…」</td></tr>
+      </table>
+      <div class="sect">選取與編輯</div>
+      <table>
+        <tr><td>選取、移動</td><td>點標註選取、拖曳移動；Delete 刪除</td></tr>
+        <tr><td>修改內容</td><td>雙擊文字或符號（符號的內文同樣用 Shift+Enter 換行）</td></tr>
+        <tr><td>縮放、旋轉</td><td>選取文字或符號後，拖右下角方塊縮放、拖外側圓點旋轉</td></tr>
+        <tr><td>換樣式</td><td>選取後用工具列的顏色、樣式區調整；或點工具列的線型、文字樣式按鈕整組換掉</td></tr>
+        <tr><td>複製</td><td>Ctrl+C 複製、Ctrl+V 貼上（可以貼到別張照片）；Ctrl+D 原地複製一份</td></tr>
+        <tr><td>上一步、下一步</td><td>Ctrl+Z；Ctrl+Y 或 Ctrl+Shift+Z（裁切、旋轉照片也能退回）</td></tr>
+      </table>
+      <div class="sect">檢視照片</div>
+      <table>
+        <tr><td>放大縮小</td><td>滾輪（以游標為中心）；點狀態列的比例或 Ctrl+0 回到整張</td></tr>
+        <tr><td>移動畫面</td><td>按住滑鼠中鍵或右鍵拖曳</td></tr>
+      </table>
+      <div class="sect">照片清單</div>
+      <table>
+        <tr><td>開啟、選取</td><td>雙擊打開編輯；單擊選取、Ctrl+單擊多選</td></tr>
+        <tr><td>排序</td><td>直接拖曳；或右鍵改編號</td></tr>
+        <tr><td>右鍵選單</td><td>設定用途（現場照片或範本裡的圖片位置）、改編號、向左／向右轉 90°、裁切…、刪除</td></tr>
+      </table>
+      <div class="sect">匯出</div>
+      <table>
+        <tr><td>匯出 Word…</td><td>選擇範本、填欄位；欄位旁的 ▾ 有候選文字、常用字串、以前填過的值；欄位名稱後面有 ＊ 的是必填</td></tr>
+        <tr><td>全部 PNG</td><td>所有照片的標註圖打包成一個 ZIP 下載</td></tr>
+        <tr><td>複製圖片</td><td>目前這張的標註圖複製到剪貼簿，可在 Word 直接貼上</td></tr>
+      </table>
+      <div class="sect">範本</div>
+      <div>範本是一般的 Word 檔：在要填資料的地方放 <code>{{名稱}}</code>，照片放 <code>{{現場照片}}</code> 或 <code>{{圖:名稱}}</code>；
+        最後一張第一列寫「範本設定」的表格定義每個欄位的類型、選項、預設值、候選文字與必填。
+        完整寫法見 GitHub 上的說明（README），也可以拿範例範本改。</div>
+      <div class="sect">存檔與設定</div>
+      <table>
+        <tr><td>專案檔</td><td>「儲存」（Ctrl+S）存成 .json；「開啟」讀回來繼續編輯</td></tr>
+        <tr><td>自動暫存</td><td>還沒存的工作每 15 秒暫存在瀏覽器裡，瀏覽器當掉後再打開會問要不要還原</td></tr>
+        <tr><td>設定檔…</td><td>匯出或匯入線型、符號、文字樣式與工具列設定，換電腦時用</td></tr>
+        <tr><td>資料在哪裡</td><td>全部只在這台電腦的瀏覽器裡處理，不會上傳</td></tr>
+      </table>
+      <div class="row"><span class="spacer"></span><button id="hClose">關閉</button></div>
+    </div>
   </div>
 </div>
 
@@ -177,9 +240,9 @@
 <div id="menu"></div>
 
 <!-- 依序載入，順序不能換：頂層程式碼只能呼叫「已經載入」的檔案裡的函式 -->
-<script src="js/core.js?v=106da3f0"></script>
+<script src="js/core.js?v=1f95dbcc"></script>
 <script src="js/edit.js?v=c89f8e80"></script>
-<script src="js/word.js?v=4a45de07"></script>
+<script src="js/word.js?v=07710901"></script>
 <script src="js/fields.js?v=f0a660c0"></script>
 <script src="js/main.js?v=b8658341"></script>
 </body>
