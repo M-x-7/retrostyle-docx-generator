@@ -87,3 +87,4 @@ window.addEventListener('beforeunload', e => {
 loadUI();
 syncControls();
 setMode('select');
+checkSession();   // 上次沒存的工作要不要還原（問完才開始自動暫存）

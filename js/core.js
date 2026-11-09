@@ -182,7 +182,8 @@ function addPhoto(name, im, url, file) {
   let w = im.naturalWidth, h = im.naturalHeight;
   const k = Math.min(1, Math.sqrt(MAX_PIXELS / (w * h)));
   if (k < 1) toast(name + ' 過大，已縮小至 ' + Math.round(w * k) + '×' + Math.round(h * k));
-  const p = { name, file, url, img:im, w:Math.round(w * k), h:Math.round(h * k), role:SITE_ROLE, items:[], undo:[], dirty:false };
+  const p = { name, file, url, img:im, w:Math.round(w * k), h:Math.round(h * k), role:SITE_ROLE, items:[], undo:[], dirty:false,
+    id:Date.now().toString(36) + Math.random().toString(36).slice(2, 8), fileVer:1 };   // id、fileVer：自動暫存用（照片檔換了才重存）
 
   p.thumb = document.createElement('canvas');
   sizeThumb(p);
@@ -971,7 +972,7 @@ function reshapePhoto(i, cv, mapPt, dA, keepIt = () => true) {
     const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92));
     const { im, url } = await loadImage(blob);
     URL.revokeObjectURL(p.url);
-    Object.assign(p, { img:im, url, file:new File([blob], p.name, { type:'image/jpeg' }), w:cv.width, h:cv.height, dirty:true });
+    Object.assign(p, { img:im, url, file:new File([blob], p.name, { type:'image/jpeg' }), w:cv.width, h:cv.height, dirty:true, fileVer:p.fileVer + 1 });
     sizeThumb(p);
     switchTo(i);
   })();

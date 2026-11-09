@@ -536,3 +536,66 @@ $('tplFile').onchange = async e => {
 idb('readonly', s => s.get('template'))
   .then(t => t && setTemplate(t.name, t.data))
   .catch(() => { /* 沒有保存的範本 */ });
+
+/* ---------- 自動暫存：瀏覽器當掉、電腦重開，還沒存成專案檔的工作不會不見 ----------
+   每 15 秒看一次（使用者指定），有變動才寫進 IndexedDB：session＝欄位、照片清單（名稱、用途、標註），photo:<id>＝照片檔（換了才重寫）。
+   下次開啟時，上次還有沒存的改動（同關頁面時的提醒）就問要不要還原。啟動時問完才開始存，免得空白畫面先把暫存蓋掉。 */
+const SESSION_KEY = 'session';
+let autosaveReady = false, autosaving = false, savedSession = '', savedFiles = {};   // savedFiles：id → 已存的 fileVer
+
+function sessionData() {
+  saveCur();
+  return { fields:docFields, cur, unsaved:photos.some(p => p.dirty),
+    photos:photos.map(p => ({ id:p.id, name:p.name, role:p.role, items:p.items })) };
+}
+
+async function autosave() {
+  const data = sessionData(), json = JSON.stringify(data);
+  const files = photos.filter(p => savedFiles[p.id] !== p.fileVer);
+  const gone = Object.keys(savedFiles).filter(id => !photos.some(p => p.id === id));
+  if (json === savedSession && !files.length && !gone.length) return;
+  const vers = files.map(p => [p.id, p.fileVer]);
+  await idb('readwrite', s => {
+    files.forEach(p => s.put(p.file, 'photo:' + p.id));
+    gone.forEach(id => s.delete('photo:' + id));
+    return s.put(data, SESSION_KEY);
+  });
+  savedSession = json;
+  vers.forEach(([id, v]) => { savedFiles[id] = v; });
+  gone.forEach(id => delete savedFiles[id]);
+}
+
+setInterval(() => {
+  if (!autosaveReady || autosaving) return;
+  autosaving = true;
+  autosave().catch(() => { /* 存不進去（例如瀏覽器禁止）就算了，不影響操作 */ }).finally(() => { autosaving = false; });
+}, 15000);
+
+async function restoreSession(d) {
+  closeAll();
+  docFields = d.fields || {};
+  for (const sp of d.photos) {
+    const blob = await idb('readonly', s => s.get('photo:' + sp.id));
+    if (!blob) continue;
+    const { im, url } = await loadImage(blob);
+    const p = addPhoto(sp.name, im, url, blob);
+    Object.assign(p, { id:sp.id, items:sp.items || [], role:sp.role || SITE_ROLE, dirty:true });   // 還原的還沒存成專案檔
+    savedFiles[p.id] = p.fileVer;
+  }
+  renumber();
+  for (let i = photos.length - 1; i >= 0; i--) switchTo(i);   // 每張都切過一次，更新縮圖與標註數
+  if (photos[d.cur]) switchTo(d.cur);
+  toast('已還原上次沒存的工作（' + photos.length + ' 張照片）');
+}
+
+// 啟動時：上次有沒存的工作就問要不要還原；不要就清掉暫存
+async function checkSession() {
+  try {
+    const d = await idb('readonly', s => s.get(SESSION_KEY));
+    if (d && d.unsaved && d.photos.length) {
+      if (confirm('上次還有沒存成專案檔的工作（' + d.photos.length + ' 張照片），要還原嗎？\n按「取消」會丟掉這份暫存。')) await restoreSession(d);
+      else await idb('readwrite', s => { d.photos.forEach(p => s.delete('photo:' + p.id)); return s.delete(SESSION_KEY); });
+    }
+  } catch (err) { /* 沒有暫存或讀不到 */ }
+  autosaveReady = true;
+}
